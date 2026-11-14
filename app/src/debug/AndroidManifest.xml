@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <application>
+        <!-- Developer bridge for the xiaoman CLI (adb shell am broadcast). Debug builds only. -->
+        <receiver
+            android:name=".debug.DebugReceiver"
+            android:exported="true"
+            tools:ignore="ExportedReceiver"
+            xmlns:tools="http://schemas.android.com/tools">
+            <intent-filter>
+                <action android:name="dev.xiaoman.debug.RUN" />
+                <action android:name="dev.xiaoman.debug.STOP" />
+                <action android:name="dev.xiaoman.debug.RELOAD_SKILLS" />
+                <action android:name="dev.xiaoman.debug.SAY" />
+            </intent-filter>
+        </receiver>
+    </application>
+</manifest>

@@ -1,0 +1,214 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Xiaoman</string>
+    <string name="app_tagline">Your phone assistant</string>
+
+    <!-- Navigation -->
+    <string name="nav_chat">Chat</string>
+    <string name="nav_skills">Skills</string>
+    <string name="nav_memory">Memory</string>
+    <string name="nav_settings">Settings</string>
+    <string name="nav_services">Services</string>
+    <string name="back">Back</string>
+
+    <!-- Chat -->
+    <string name="chat_input_hint">Tell Xiaoman what to do</string>
+    <string name="chat_answer_hint">Answer Xiaoman\'s question</string>
+    <string name="chat_send">Send</string>
+    <string name="chat_stop">Stop</string>
+    <string name="chat_question_label">Xiaoman asks</string>
+    <string name="chat_takeover_label">You need to take over</string>
+    <string name="chat_error_label">Something went wrong</string>
+    <string name="banner_accessibility">Accessibility is off, so Xiaoman cannot operate other apps yet.</string>
+    <string name="banner_accessibility_action">Turn on</string>
+    <string name="banner_models">The chat model and operator model are not configured yet.</string>
+    <string name="banner_models_action">Open settings</string>
+    <string name="banner_notifications">Allow notifications to hear about running tasks and approvals.</string>
+    <string name="banner_notifications_action">Allow</string>
+
+    <!-- Approvals -->
+    <string name="approval_title">Needs your approval</string>
+    <string name="approval_once">Allow once</string>
+    <string name="approval_task">Allow for this task</string>
+    <string name="approval_deny">Deny</string>
+    <string name="approval_more">More options</string>
+    <string name="approval_resolved_allowed">Allowed: %1$s</string>
+    <string name="approval_resolved_task">Allowed for this task: %1$s</string>
+    <string name="approval_resolved_denied">Denied: %1$s</string>
+
+    <!-- Skills -->
+    <string name="skills_title">Skills</string>
+    <string name="skills_reload">Reload</string>
+    <string name="skills_empty">No skills yet. Put a skill folder in %1$s and tap reload.</string>
+    <string name="skills_problems">Loading problems</string>
+
+    <!-- Memory -->
+    <string name="memory_search_hint">Search memory</string>
+    <string name="memory_empty">No memories yet.</string>
+    <string name="memory_no_hits">No matching notes.</string>
+    <string name="memory_delete">Delete</string>
+    <string name="memory_delete_title">Delete this note?</string>
+    <string name="memory_delete_message">“%1$s” will be permanently deleted from this phone.</string>
+    <string name="memory_delete_confirm">Delete</string>
+    <string name="memory_not_found">This note no longer exists.</string>
+    <string name="cancel">Cancel</string>
+    <string name="clear">Clear</string>
+
+    <!-- Settings -->
+    <string name="settings_title">Settings</string>
+    <string name="settings_chat_model">Chat model</string>
+    <string name="settings_operator_model">Operator model (must accept images)</string>
+    <string name="settings_base_url">Base URL</string>
+    <string name="settings_model">Model name</string>
+    <string name="settings_api_key">API key</string>
+    <string name="settings_show_key">Show API key</string>
+    <string name="settings_hide_key">Hide API key</string>
+    <string name="settings_temperature">Temperature (optional)</string>
+    <string name="settings_agent">Task</string>
+    <string name="settings_max_steps">Maximum steps</string>
+    <string name="settings_learn">Remember a successful path</string>
+    <string name="settings_save">Save</string>
+    <string name="settings_saved">Saved</string>
+    <string name="settings_invalid_number">Enter a valid number</string>
+    <string name="settings_copy_chat">Same as the chat model</string>
+    <string name="settings_folders">Folders</string>
+
+    <!-- Service and notifications -->
+    <string name="channel_status">Task status</string>
+    <string name="channel_status_description">Shown while Xiaoman is running a task</string>
+    <string name="channel_attention">Needs you</string>
+    <string name="channel_attention_description">Alerts when Xiaoman needs an answer or approval</string>
+    <string name="channel_reminders">Reminders</string>
+    <string name="channel_reminders_description">Notifies when a reminder you set is due</string>
+    <string name="notification_running">Xiaoman is working</string>
+    <string name="notification_question">Xiaoman has a question</string>
+    <string name="reminder_title">Reminder</string>
+
+    <!-- Session messages -->
+    <string name="session_not_configured">Models are not configured. Fill in the chat and operator models in Settings first.</string>
+    <string name="session_busy">A task is already running. Try again in a moment.</string>
+    <string name="session_stopped">Stopped</string>
+
+    <!-- MCP services -->
+    <string name="mcp_title">External services</string>
+    <string name="mcp_intro">Tick a service and Xiaoman can call it directly instead of operating the phone. Actions that change data or cost money are confirmed in the chat first.</string>
+    <string name="mcp_enabled_count">%1$d enabled</string>
+    <string name="mcp_recommended">Recommended set</string>
+    <string name="mcp_test">Test connection</string>
+    <string name="mcp_testing">Connecting…</string>
+    <string name="mcp_official">Official</string>
+    <string name="mcp_community">Community</string>
+    <string name="mcp_apply_key">Get a key</string>
+    <string name="mcp_connected">Connected, %1$d tools</string>
+    <string name="mcp_failed">Connection failed: %1$s</string>
+    <string name="mcp_missing_key">Still missing: %1$s</string>
+    <string name="mcp_custom_title">Other MCP services</string>
+    <string name="mcp_custom_hint">Only add services you trust. The URL must be https and support Streamable HTTP.</string>
+    <string name="mcp_custom_name">Name</string>
+    <string name="mcp_custom_url">URL (https://…)</string>
+    <string name="mcp_custom_auth">Authorization header (optional)</string>
+    <string name="mcp_custom_confirm">Confirm before calls</string>
+    <string name="mcp_confirm_writes">Confirm when data changes</string>
+    <string name="mcp_confirm_all">Always confirm</string>
+    <string name="mcp_confirm_none">Never confirm</string>
+    <string name="mcp_custom_add">Add</string>
+    <string name="mcp_custom_invalid">%1$s</string>
+    <string name="mcp_remove">Remove</string>
+
+    <!-- Muse UI, quick commands and voice input -->
+    <string name="more">More</string>
+    <string name="save">Save</string>
+    <string name="edit">Edit</string>
+    <string name="delete">Delete</string>
+    <string name="close">Close</string>
+    <string name="yes">Yes</string>
+    <string name="no">No</string>
+    <string name="chat_status_attention">Waiting for you</string>
+    <string name="chat_status_busy">Working</string>
+    <string name="chat_status_ready">Ready</string>
+    <string name="chat_status_setup">Set up</string>
+    <string name="chat_greeting">What would you like to do today?</string>
+    <string name="chat_greeting_hint">Say a word and I will get to work. Save a few shortcuts and they are one tap away next time.</string>
+    <string name="chat_greeting_footer">Use the corner menu on a shortcut to edit or delete it; the bookmark button in the composer saves what you typed.</string>
+    <string name="chat_process">Process · %1$d entries</string>
+    <string name="chat_process_expand">Expand process</string>
+    <string name="chat_process_collapse">Collapse process</string>
+    <string name="chat_clear">Clear conversation</string>
+    <string name="chat_clear_title">Clear this conversation?</string>
+    <string name="chat_clear_message">The chat history is removed from this phone. Memory and skills are not affected.</string>
+    <string name="chat_clear_confirm">Clear</string>
+    <string name="chat_mic">Voice input</string>
+    <string name="chat_stop_listening">Stop voice input</string>
+    <string name="chat_listening">Listening… speak now</string>
+    <string name="chat_save_command">Save as shortcut</string>
+    <string name="quick_title">Shortcuts</string>
+    <string name="quick_add">New shortcut</string>
+    <string name="quick_dialog_add_title">New shortcut</string>
+    <string name="quick_dialog_edit_title">Edit shortcut</string>
+    <string name="quick_dialog_title_label">Name</string>
+    <string name="quick_dialog_prompt_label">Message to Xiaoman</string>
+    <string name="quick_dialog_hint">Tapping the card fills this message into the composer; edit it before sending if you like.</string>
+    <string name="quick_delete_title">Delete this shortcut?</string>
+    <string name="quick_delete_message">“%1$s” will be removed from your shortcuts.</string>
+    <string name="quick_default_notebook_title">Pick a notebook</string>
+    <string name="quick_default_notebook_prompt">Pick an A5 notebook under 20 yuan on Taobao and show it to me for confirmation.</string>
+    <string name="quick_default_water_title">Remind me to drink water</string>
+    <string name="quick_default_water_prompt">Remind me to drink water in 10 minutes.</string>
+    <string name="quick_default_preference_title">Remember my taste</string>
+    <string name="quick_default_preference_prompt">Remember that I prefer simple, practical things when shopping.</string>
+    <string name="voice_unavailable">No speech recognition service is available on this device.</string>
+    <string name="voice_permission_denied">Recording permission is required for voice input.</string>
+    <string name="voice_no_match">I did not catch that. Please try again.</string>
+    <string name="voice_timeout">Voice input timed out. Try again.</string>
+    <string name="voice_busy">Speech recognition is busy. Try again shortly.</string>
+    <string name="voice_network">Speech recognition needs a network. Check your connection and try again.</string>
+    <string name="voice_error">Voice input failed. Try again or type instead.</string>
+
+    <!-- Settings diagnostics and folder labels -->
+    <string name="settings_intro">Configure both the chat model and the operator model. The operator model must accept images, otherwise it cannot read the screen.</string>
+    <string name="settings_folder_skills_label">Skills folder</string>
+    <string name="settings_folder_memory_label">Memory folder</string>
+    <string name="settings_folder_traces_label">Traces folder</string>
+    <string name="settings_folder_chat_label">Conversation folder</string>
+    <string name="settings_test">Test connection</string>
+    <string name="settings_testing">Testing…</string>
+    <string name="settings_test_ok">Connected · %1$d ms</string>
+    <string name="settings_test_failed">Connection failed (%1$s)</string>
+    <string name="settings_test_auth">The key is invalid or expired, or this model is not enabled (401/403).</string>
+    <string name="settings_test_not_found">The Base URL or model name is wrong (404). The Base URL should stop at /v1 or /api/v3.</string>
+    <string name="settings_test_limit">Rate limited or out of quota (429). Check the account balance and model limits.</string>
+    <string name="settings_test_vision">The operator model may not accept images (400). Use a vision-capable model.</string>
+    <string name="settings_test_network">Network unreachable or the request timed out. Check the connection and Base URL.</string>
+    <string name="settings_test_invalid">Fill in a valid Base URL, model name, key and temperature first.</string>
+
+    <!-- Skill details and authoring handoff -->
+    <string name="skills_search_hint">Search skills</string>
+    <string name="skills_new">New skill</string>
+    <string name="skills_edit">Edit in one sentence</string>
+    <string name="skills_mine">Mine</string>
+    <string name="skills_detail">Details</string>
+    <string name="skills_channel">Channel: %1$s</string>
+    <string name="skills_channel_label">Channel</string>
+    <string name="skills_apps_label">Allowed apps</string>
+    <string name="skills_confirm_label">Confirmation words</string>
+    <string name="skills_memory_label">Referenced memory</string>
+    <string name="skills_flow_label">Fixed flow</string>
+    <string name="skills_source_label">Source</string>
+    <string name="skills_instructions_label">Instructions</string>
+    <string name="skills_new_prompt">Help me create a skill. First ask me the four questions: when it starts, what to do step by step, how to check the result, and which step needs my confirmation. Show me the SKILL.md first; only save after I reply “confirm”.</string>
+    <string name="skills_edit_prompt">I want to change the skill %1$s. Read the current content with skill_read first, ask me what to change, then show me the updated SKILL.md; only save after I reply “confirm”.</string>
+
+    <!-- Memory editing -->
+    <string name="memory_new">New memory</string>
+    <string name="memory_edit">Edit</string>
+    <string name="memory_new_title">New memory</string>
+    <string name="memory_edit_title">Edit memory</string>
+    <string name="memory_title_label">Title</string>
+    <string name="memory_permalink_label">Path (optional, e.g. places/home)</string>
+    <string name="memory_type_label">Type (optional, e.g. preference)</string>
+    <string name="memory_tags_label">Tags (comma separated)</string>
+    <string name="memory_body_label">Content (Markdown)</string>
+    <string name="memory_save">Save</string>
+    <string name="memory_invalid">A title is required.</string>
+    <string name="memory_edit_hint">You can edit the Markdown directly. Saving rewrites the note in Basic Memory format.</string>
+</resources>
