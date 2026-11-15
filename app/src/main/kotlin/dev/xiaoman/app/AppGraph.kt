@@ -348,7 +348,7 @@ class AppGraph(context: Context, private val llm: LlmClientFactory = LlmClients.
     fun start() {
         startup = scope.async(Dispatchers.IO) { prepareSkills() }
         notifier.createChannels()
-        OverlayController(session, accessibilityDevice, uiVisible = uiVisible, fallbackTitle = app.getString(R.string.app_name)).start(scope)
+        OverlayController(app, session, accessibilityDevice, uiVisible = uiVisible, fallbackTitle = app.getString(R.string.app_name)).start(scope)
         scope.launch(Dispatchers.Main.immediate) {
             session.busy.collect { busy -> if (busy) AgentService.start(app) }
         }

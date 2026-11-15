@@ -1,6 +1,7 @@
 package dev.xiaoman.hands
 
 import android.content.Context
+import android.content.res.ColorStateList
 import android.graphics.PixelFormat
 import android.graphics.drawable.GradientDrawable
 import android.os.Handler
@@ -37,8 +38,21 @@ class StatusOverlay(private val context: Context) {
     private val main = Handler(Looper.getMainLooper())
     private val windowManager = context.getSystemService(WindowManager::class.java)
     private var root: LinearLayout? = null
+    private var statusRow: LinearLayout? = null
+    private var approvalCard: LinearLayout? = null
     private var textView: TextView? = null
+    private var approvalTitle: TextView? = null
+    private var approvalPrompt: TextView? = null
+    private var denyButton: Button? = null
+    private var onceButton: Button? = null
+    private var taskButton: TextView? = null
     private var pendingText: CharSequence = ""
+    private var mode = OverlayMode.STATUS
+    private var denyAction: (() -> Unit)? = null
+    private var onceAction: (() -> Unit)? = null
+    private var taskAction: (() -> Unit)? = null
+
+    private enum class OverlayMode { STATUS, APPROVAL }
 
     val isShowing: Boolean get() = root?.isAttachedToWindow == true
 
@@ -58,13 +72,71 @@ class StatusOverlay(private val context: Context) {
 
     fun update(text: CharSequence) = onMain {
         pendingText = text
+        if (mode == OverlayMode.STATUS) textView?.text = text
+    }
+
+    /** Back to the small step pill (also used when an approval is answered). */
+    fun showStatus(text: CharSequence) = onMain {
+        pendingText = text
+        show()
+        mode = OverlayMode.STATUS
         textView?.text = text
+        approvalCard?.visibility = View.GONE
+        statusRow?.apply {
+            visibility = View.VISIBLE
+            alpha = 0f
+            animate().alpha(1f).setDuration(160).start()
+        }
+    }
+
+    /**
+     * Grows the pill into a confirmation card while Xiaoman operates another app. The window is
+     * the accessibility overlay, so it is visible above the observed app without any extra
+     * permission; the in-app approval island only helps when Xiaoman itself is in front.
+     */
+    fun showApproval(
+        title: CharSequence,
+        prompt: CharSequence,
+        deny: CharSequence,
+        once: CharSequence,
+        task: CharSequence,
+        onDeny: () -> Unit,
+        onOnce: () -> Unit,
+        onTask: () -> Unit,
+    ) = onMain {
+        show()
+        mode = OverlayMode.APPROVAL
+        denyAction = onDeny
+        onceAction = onOnce
+        taskAction = onTask
+        approvalTitle?.text = title
+        approvalPrompt?.text = prompt
+        denyButton?.text = deny
+        onceButton?.text = once
+        taskButton?.text = task
+        denyButton?.isEnabled = true
+        onceButton?.isEnabled = true
+        taskButton?.isEnabled = true
+        statusRow?.visibility = View.GONE
+        approvalCard?.apply {
+            visibility = View.VISIBLE
+            alpha = 0f
+            animate().alpha(1f).setDuration(180).start()
+        }
     }
 
     fun hide() = onMain {
         val view = root ?: return@onMain
         root = null
+        statusRow = null
+        approvalCard = null
         textView = null
+        approvalTitle = null
+        approvalPrompt = null
+        denyButton = null
+        onceButton = null
+        taskButton = null
+        mode = OverlayMode.STATUS
         runCatching { windowManager.removeViewImmediate(view) }
     }
 
@@ -128,18 +200,102 @@ class StatusOverlay(private val context: Context) {
             setTextSize(TypedValue.COMPLEX_UNIT_SP, 12f)
             setOnClickListener { onStop() }
         }
-        textView = label
-        return LinearLayout(context).apply {
+        val status = LinearLayout(context).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
             setPadding(pad * 2, pad / 2, pad / 2, pad / 2)
-            background = GradientDrawable().apply {
-                cornerRadius = dp(24).toFloat()
-                setColor(0xF01E4635.toInt())
-            }
+            background = rounded(0xF01E4635.toInt(), 24)
             addView(label, LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT).apply { marginEnd = pad })
             addView(stop, LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT))
         }
+
+        val cardWidth = (context.resources.displayMetrics.widthPixels * 0.92f).toInt().coerceAtMost(dp(430))
+        val title = TextView(context).apply {
+            setTextColor(0xFFFFFFFF.toInt())
+            setTextSize(TypedValue.COMPLEX_UNIT_SP, 13f)
+            typeface = android.graphics.Typeface.DEFAULT_BOLD
+            maxLines = 1
+            ellipsize = TextUtils.TruncateAt.END
+        }
+        val prompt = TextView(context).apply {
+            setTextColor(0xFFFFFFFF.toInt())
+            setTextSize(TypedValue.COMPLEX_UNIT_SP, 12f)
+            maxLines = 5
+            ellipsize = TextUtils.TruncateAt.END
+            setPadding(0, dp(8), 0, dp(10))
+            accessibilityLiveRegion = View.ACCESSIBILITY_LIVE_REGION_ASSERTIVE
+        }
+        val deny = Button(context).apply {
+            isAllCaps = false
+            setTextSize(TypedValue.COMPLEX_UNIT_SP, 12f)
+            setTextColor(0xFFFFFFFF.toInt())
+            backgroundTintList = ColorStateList.valueOf(0x33FFFFFF)
+            minHeight = dp(44)
+            minimumHeight = dp(44)
+            setOnClickListener { submit(denyAction) }
+        }
+        val once = Button(context).apply {
+            isAllCaps = false
+            setTextSize(TypedValue.COMPLEX_UNIT_SP, 12f)
+            setTextColor(0xFF1E4635.toInt())
+            backgroundTintList = ColorStateList.valueOf(0xFFFFFFFF.toInt())
+            minHeight = dp(44)
+            minimumHeight = dp(44)
+            setOnClickListener { submit(onceAction) }
+        }
+        val buttons = LinearLayout(context).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+            addView(deny, LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f).apply { marginEnd = dp(8) })
+            addView(once, LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f))
+        }
+        val task = TextView(context).apply {
+            setTextColor(0xFFFFFFFF.toInt())
+            setTextSize(TypedValue.COMPLEX_UNIT_SP, 12f)
+            gravity = Gravity.CENTER
+            setPadding(dp(10), dp(8), dp(10), dp(8))
+            background = rounded(0x22FFFFFF, 16)
+            setOnClickListener { submit(taskAction) }
+        }
+        val card = LinearLayout(context).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(pad * 2, pad * 2, pad * 2, pad)
+            background = rounded(0xF01E4635.toInt(), 24)
+            visibility = View.GONE
+            addView(title, LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT))
+            addView(prompt, LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT))
+            addView(buttons, LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT))
+            addView(task, LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT).apply { topMargin = dp(8) })
+        }
+
+        textView = label
+        approvalTitle = title
+        approvalPrompt = prompt
+        denyButton = deny
+        onceButton = once
+        taskButton = task
+        statusRow = status
+        approvalCard = card
+
+        return LinearLayout(context).apply {
+            orientation = LinearLayout.VERTICAL
+            addView(status, LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT))
+            addView(card, LinearLayout.LayoutParams(cardWidth, LinearLayout.LayoutParams.WRAP_CONTENT))
+        }
+    }
+
+    private fun rounded(color: Int, radiusDp: Int) = GradientDrawable().apply {
+        cornerRadius = dp(radiusDp).toFloat()
+        setColor(color)
+    }
+
+    /** One answer per approval: disable the other actions before handing control back. */
+    private fun submit(action: (() -> Unit)?) {
+        if (action == null) return
+        denyButton?.isEnabled = false
+        onceButton?.isEnabled = false
+        taskButton?.isEnabled = false
+        action()
     }
 
     private fun layoutParams() = WindowManager.LayoutParams(
