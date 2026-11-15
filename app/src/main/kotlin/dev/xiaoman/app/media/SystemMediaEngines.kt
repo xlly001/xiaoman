@@ -23,6 +23,7 @@ import dev.xiaoman.api.OcrResult
 import dev.xiaoman.api.TtsEngine
 import dev.xiaoman.api.TtsResult
 import dev.xiaoman.api.TtsVoice
+import dev.xiaoman.app.R
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.suspendCancellableCoroutine
@@ -114,19 +115,44 @@ class SystemTtsEngine(context: Context) : TtsEngine {
     override val kind = MediaEngineKind.SYSTEM
     override val detail = "Android 系统语音合成"
 
+    private val appContext = context.applicationContext
     private val ready = CompletableDeferred<Boolean>()
 
-    @Suppress("DEPRECATION")
-    private val tts = TextToSpeech(context) { status -> ready.complete(status == TextToSpeech.SUCCESS) }
+    /**
+     * TextToSpeech binds its callbacks to the Looper of the constructing thread. The media router
+     * is built from a background coroutine, so create the engine on the main thread explicitly;
+     * otherwise the init callback and utterance callbacks can never be delivered and playback
+     * silently produces no sound.
+     */
+    @Volatile private var tts: TextToSpeech? = null
+
+    private suspend fun engine(): TextToSpeech {
+        tts?.let { return it }
+        return withContext(Dispatchers.Main) {
+            tts ?: TextToSpeech(appContext) { status -> ready.complete(status == TextToSpeech.SUCCESS) }
+                .also { tts = it }
+        }
+    }
 
     override suspend fun speak(text: String, voice: TtsVoice): TtsResult {
-        if (withTimeoutOrNull(8_000) { ready.await() } != true) {
-            throw MediaException("系统语音合成不可用", capability = MediaCapability.TTS)
-        }
         if (text.isBlank()) return TtsResult(0, null, "system")
+        val engine = engine()
+        if (withTimeoutOrNull(8_000) { ready.await() } != true) {
+            throw MediaException(appContext.getString(R.string.media_tts_system_not_ready), capability = MediaCapability.TTS)
+        }
+
+        // Prefer a Chinese voice for Chinese text; many phones default to an English engine even
+        // when the UI locale is Chinese, which reads Chinese characters as silence.
+        val chinese = text.any { it.code in 0x4E00..0x9FFF }
+        val language = if (chinese) Locale.SIMPLIFIED_CHINESE else Locale.getDefault()
+        val languageStatus = engine.setLanguage(language)
+        if (languageStatus == TextToSpeech.LANG_MISSING_DATA || languageStatus == TextToSpeech.LANG_NOT_SUPPORTED) {
+            throw MediaException(appContext.getString(R.string.media_tts_system_missing), capability = MediaCapability.TTS)
+        }
+
         val token = "xiaoman-${System.nanoTime()}"
         val done = CompletableDeferred<Unit>()
-        tts.setOnUtteranceProgressListener(object : UtteranceProgressListener() {
+        engine.setOnUtteranceProgressListener(object : UtteranceProgressListener() {
             override fun onStart(utteranceId: String?) = Unit
             override fun onDone(utteranceId: String?) {
                 if (utteranceId == token) done.complete(Unit)
@@ -134,23 +160,30 @@ class SystemTtsEngine(context: Context) : TtsEngine {
 
             @Deprecated("Required by UtteranceProgressListener on older API levels")
             override fun onError(utteranceId: String?) {
-                if (utteranceId == token) done.complete(Unit)
+                if (utteranceId == token) {
+                    done.completeExceptionally(MediaException(appContext.getString(R.string.media_tts_system_failed), capability = MediaCapability.TTS))
+                }
             }
 
             override fun onError(utteranceId: String?, errorCode: Int) {
-                if (utteranceId == token) done.complete(Unit)
+                if (utteranceId == token) {
+                    val message = appContext.getString(R.string.media_tts_system_failed_code, errorCode)
+                    done.completeExceptionally(MediaException(message, capability = MediaCapability.TTS))
+                }
             }
         })
         val params = Bundle().apply { putString(TextToSpeech.Engine.KEY_PARAM_UTTERANCE_ID, token) }
-        tts.language = Locale.getDefault()
-        tts.speak(text, TextToSpeech.QUEUE_FLUSH, params, token)
+        if (engine.speak(text, TextToSpeech.QUEUE_FLUSH, params, token) == TextToSpeech.ERROR) {
+            throw MediaException(appContext.getString(R.string.media_tts_system_rejected), capability = MediaCapability.TTS)
+        }
         // Some engines never fire onDone; never block the caller forever.
         withTimeoutOrNull(120_000) { done.await() }
+            ?: throw MediaException(appContext.getString(R.string.media_tts_system_timeout), capability = MediaCapability.TTS)
         return TtsResult(audioBytes = 0, mimeType = null, voice = "system")
     }
 
     override fun stop() {
-        tts.stop()
+        tts?.stop()
     }
 }
 

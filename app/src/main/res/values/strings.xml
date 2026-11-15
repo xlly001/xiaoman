@@ -444,4 +444,10 @@
     <string name="media_ocr_running">正在识别图中文字…</string>
     <string name="media_ocr_error">文字识别失败：%1$s</string>
     <string name="media_tts_error">朗读失败：%1$s</string>
+    <string name="media_tts_system_not_ready">系统语音引擎未就绪，请检查系统 TTS 设置</string>
+    <string name="media_tts_system_missing">系统 TTS 缺少中文语音数据，请在系统设置中安装语音包，或在设置里改用 DeepSeek 官方 TTS</string>
+    <string name="media_tts_system_failed">系统 TTS 播放失败</string>
+    <string name="media_tts_system_failed_code">系统 TTS 播放失败（错误码 %1$d）</string>
+    <string name="media_tts_system_rejected">系统 TTS 拒绝了朗读请求</string>
+    <string name="media_tts_system_timeout">系统 TTS 朗读超时</string>
 </resources>

@@ -105,6 +105,13 @@ class AppGraph(context: Context, private val llm: LlmClientFactory = LlmClients.
     val speaking = MutableStateFlow<String?>(null)
     private var speakJob: Job? = null
 
+    /** Last read-aloud failure; the UI shows it once and calls [clearSpeakError]. */
+    val speakError = MutableStateFlow<String?>(null)
+
+    fun clearSpeakError() {
+        speakError.value = null
+    }
+
     /** Read one message aloud, replacing any playback already in progress. */
     fun speak(text: String) {
         if (text.isBlank()) return
@@ -117,6 +124,7 @@ class AppGraph(context: Context, private val llm: LlmClientFactory = LlmClients.
                 throw cancel
             } catch (error: Throwable) {
                 Log.w(TAG, "tts: ${error.message}")
+                speakError.value = error.message ?: error.javaClass.simpleName
             } finally {
                 if (speaking.value == text) speaking.value = null
             }

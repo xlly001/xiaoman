@@ -444,4 +444,10 @@
     <string name="media_ocr_running">Extracting text from image…</string>
     <string name="media_ocr_error">Text recognition failed: %1$s</string>
     <string name="media_tts_error">Read-aloud failed: %1$s</string>
+    <string name="media_tts_system_not_ready">System TTS is not ready. Check the system text-to-speech settings.</string>
+    <string name="media_tts_system_missing">The system TTS has no Chinese voice data. Install a voice package in system settings, or switch to the DeepSeek official TTS in Settings.</string>
+    <string name="media_tts_system_failed">System TTS playback failed.</string>
+    <string name="media_tts_system_failed_code">System TTS playback failed (error %1$d).</string>
+    <string name="media_tts_system_rejected">System TTS rejected the read-aloud request.</string>
+    <string name="media_tts_system_timeout">System TTS timed out.</string>
 </resources>

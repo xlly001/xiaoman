@@ -1,5 +1,6 @@
 package dev.xiaoman.app.ui
 
+import android.widget.Toast
 import androidx.annotation.StringRes
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
@@ -40,6 +41,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dev.xiaoman.app.AppGraph
@@ -100,6 +102,15 @@ fun XiaomanRoot(graph: AppGraph, darkTheme: Boolean = isSystemInDarkTheme()) {
     // Never build the other pages while a reply is streaming: that is the one moment the main
     // thread is already busy and an extra composition would show up as a stutter.
     val busy by graph.session.busy.collectAsStateWithLifecycle()
+    val context = LocalContext.current
+    // A failed read-aloud used to be log-only, so a phone with no TTS voice data looked like a
+    // silent no-op. Surface the reason once and let the user act on it.
+    val speakError by graph.speakError.collectAsStateWithLifecycle()
+    LaunchedEffect(speakError) {
+        val message = speakError ?: return@LaunchedEffect
+        Toast.makeText(context, context.getString(R.string.media_tts_error, message), Toast.LENGTH_LONG).show()
+        graph.clearSpeakError()
+    }
     // Follow the app's own theme, not the system one: picking "深色" in Settings must
     // switch the full-screen wash too, otherwise dark cards sit on a light blue background.
     val wash = if (darkTheme) MuseDarkWash else MuseLightWash
