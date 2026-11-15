@@ -2,6 +2,10 @@
 
 [中文](README.md)
 
+> This project is a derivative work based on [aduoge/xiaoman](https://github.com/aduoge/xiaoman),
+> distributed under the same MIT license. The original work is copyright aduoge; modifications and
+> additions in this repository are copyright xllyxx and contributors. See [LICENSE](LICENSE).
+
 An open-source personal agent that lives on an Android phone. You chat with it in its app; it
 remembers what you tell it and operates the other apps on the phone for you (打车、点外卖、改设置 ...).
 New scenarios are **skills**: small `SKILL.md` + `flow.yaml` folders you can push without rebuilding

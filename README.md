@@ -2,6 +2,9 @@
 
 [English](README.en.md)
 
+> 本项目基于 [aduoge/xiaoman](https://github.com/aduoge/xiaoman) 二次开发，沿用原项目的 MIT 协议。
+> 原项目版权归 aduoge 所有；本仓库的修改与新增部分版权归 xllyxx and contributors。详见 [LICENSE](LICENSE)。
+
 小满是一个跑在 Android 手机上的开源私人助手。你在它的 App 里聊天，它会记住你告诉它的事，
 也能替你操作手机上的其他 App，比如打车、点外卖、改系统设置。新场景以**技能**的形式添加：一个技能
 就是一个包含 `SKILL.md` 和可选 `flow.yaml` 的小文件夹，推到手机上即可生效，不需要重新打包 APK。

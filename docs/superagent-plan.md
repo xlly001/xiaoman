@@ -1,8 +1,8 @@
 # 小满 SuperAgent 功能开发计划
 
 > 状态：规划稿（v0.3，P0-1 任务队列与 P0-2 检查点已落地）  
-> 适用范围：Android 客户端 `f:\gowork\xllyxx\xiaoman`  
-> 关联文档：[架构说明](ARCHITECTURE.md)、[UI 交互](ui-interaction.md)、[Spec](../.trae/specs/xiaoman-ui/spec.md)
+> 适用范围：Android 客户端（本仓库）  
+> 关联文档：[架构说明](ARCHITECTURE.md)、[UI 交互](ui-interaction.md)；需求 Spec 为本地维护文档，不入库。
 
 ## 1. 什么是 SuperAgent
 

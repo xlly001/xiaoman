@@ -1,20 +1,43 @@
+# Gradle / Kotlin / IDE
 .gradle/
 .kotlin/
 build/
 local.properties
 *.iml
 .idea/
+.vscode/
 captures/
+
+# 打包与签名材料：只留在本机，绝不入库
 *.apk
+*.aab
 *.keystore
 *.jks
-# 发行签名材料（密钥库 + 口令）只留在本机，绝不入库
 /keystore/
 keystore.properties
+
+# 本地密钥与私密配置
 .env
-__pycache__/
-.DS_Store
-# xiaoman traces pull/show 的默认输出目录
-/traces/
-# 本地验收截图与 uiautomator dump，不进入代码版本
+.env.*
+*.pem
+*.p12
+
+# 本地分发产物、验收截图与 uiautomator dump
+/dist/
 /.screenshots/
+/traces/
+
+# AI / 编辑器工具的私有目录（需求草稿、会话记录、缓存），不属于项目源码
+.trae/
+.workbuddy/
+.claude/
+.cursor/
+.aider*
+
+# 运行时杂物
+__pycache__/
+*.pyc
+.DS_Store
+Thumbs.db
+*.hprof
+*.log

@@ -1,7 +1,7 @@
 # 小满（Xiaoman）交接文档
 
 > 面向接手者 / WorkBuddy。读完这一篇即可继续开发，不需要回看聊天记录。  
-> 项目路径：`f:\gowork\xllyxx\xiaoman`  
+> 项目路径：仓库根目录（本文档位于 `docs/`）  
 > 交接时间：2026-11-15  
 > 功能代码基线：`1a198a8 feat: built-in TTS, ASR and OCR engines with DeepSeek-first routing`（本地提交，未 push；交接时基线为 `92d4657`）  
 > 长期目标：继续开发小满，路线见 [SuperAgent 功能开发计划](superagent-plan.md)。
@@ -15,9 +15,9 @@
 - 技术栈：Kotlin + Jetpack Compose（Material 3），多模块 Gradle，JDK 17，minSdk 30 / targetSdk 35。
 - 模块：`core-api`、`core-llm`、`core-memory`、`core-skills`、`core-sentinel`、`core-agent`、`hands`、`core-mcp`、`app`，另有 `cli/`、`web-server/`、`ios-runner/`、`eval/`（纯 JVM 场景评测）。
 - `core-*` 是纯 JVM，不依赖 Android，因此单元测试可以脱离设备运行。
-- 所有重要判断（可恢复性、检查点、队列、安全边界）都在 `docs/superagent-plan.md` 与 `.trae/specs/xiaoman-ui/` 三份 Spec 里。
+- 所有重要判断（可恢复性、检查点、队列、安全边界）都在 `docs/superagent-plan.md` 与本地维护的 Spec 三件套（`.trae/specs/xiaoman-ui/`，属个人工作目录，不入库）里。
 
-**接手第一件事**：读 [superagent-plan.md](superagent-plan.md) 的「阶段 0」和 `.trae/specs/xiaoman-ui/spec.md` 的 FR-12 / FR-15 / FR-16。它们定义了当前行为。
+**接手第一件事**：读 [superagent-plan.md](superagent-plan.md) 的「阶段 0」和本地 Spec 的 FR-12 / FR-15 / FR-16。它们定义了当前行为。
 
 ---
 
@@ -27,7 +27,7 @@
 $env:JAVA_HOME    = 'D:\Android\jdk17'
 $env:ANDROID_HOME = 'D:\Android\sdk'
 
-cd f:\gowork\xllyxx\xiaoman
+cd xiaoman
 .\gradlew.bat :core-llm:test :core-agent:test :core-skills:test :app:testDebugUnitTest :eval:test
 .\gradlew.bat :eval:run   # 15 个评测场景，报告在 eval/build/reports/eval/
 .\gradlew.bat :app:assembleDebug :app:lintDebug --offline
@@ -102,7 +102,7 @@ keyPassword=***
 ### 2.3 国际化与文档
 
 - 中英文资源 `values/strings.xml` 与 `values-en/strings.xml`，当前 **388/388**，脚本比对零缺失。
-- Spec 三件套：`.trae/specs/xiaoman-ui/{spec,tasks,checklist}.md`，每次功能变更必须增量更新。
+- Spec 三件套：`.trae/specs/xiaoman-ui/{spec,tasks,checklist}.md`（本地维护，不入库），每次功能变更必须增量更新。
 - 用户文档：`README.md` / `README.en.md` / `docs/ARCHITECTURE.md` / `docs/ui-interaction.md`。
 
 ### 2.4 最近的提交
@@ -319,7 +319,7 @@ debug 广播新增（仅 debug 包）：`dev.xiaoman.debug.ENQUEUE`（走真实�
 
 ## 10. 接手后前 30 分钟建议
 
-1. 读 `docs/superagent-plan.md` 阶段 0 + `.trae/specs/xiaoman-ui/spec.md` 的 FR-15/FR-16。
+1. 读 `docs/superagent-plan.md` 阶段 0 + 本地 Spec 的 FR-15/FR-16。
 2. 跑一遍测试、`:eval:run` 与 `assembleDebug`，确认本地环境（评测集不需 Key / 设备）。
 3. 装 APK 到模拟器，走一遍：聊天 → 任务页新建任务 → 队列暂停/继续 → 任务详情。
 4. P0-4 已完成（见第 5 节）；`docs/handover/p0-4-streaming-wip.patch` 是遗留脚手架，可删，勿再 `git apply`。
