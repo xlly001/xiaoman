@@ -39,6 +39,7 @@ import dev.xiaoman.app.session.TaskThread
 @Composable
 fun TaskDetailScreen(graph: AppGraph, taskId: String, onBack: () -> Unit) {
     val threads by graph.taskThreads.threads.collectAsStateWithLifecycle()
+    val speaking by graph.speaking.collectAsStateWithLifecycle()
     val thread = threads.firstOrNull { it.id == taskId }
     val rows = remember(thread?.items) { chatTimeline(thread?.items.orEmpty()) }
 
@@ -76,7 +77,11 @@ fun TaskDetailScreen(graph: AppGraph, taskId: String, onBack: () -> Unit) {
         ) {
             items(rows, key = { it.id }) { row ->
                 when (row) {
-                    is TimelineRow.Message -> ChatMessage(row.item)
+                    is TimelineRow.Message -> ChatMessage(
+                        row.item,
+                        speakingText = speaking,
+                        onToggleSpeak = graph::toggleSpeaking,
+                    )
                     is TimelineRow.Process -> ProcessCard(row.entries, initiallyExpanded = true)
                 }
             }

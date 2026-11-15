@@ -346,7 +346,7 @@ fun ChatDock(
                 if (busy && question == null) {
                     IconButton(onClick = {
                         session.stop()
-                        graph.media.current().tts.stop()
+                        graph.stopSpeaking()
                     }, modifier = Modifier.size(38.dp)) {
                         Icon(
                             Icons.Filled.Stop,

@@ -95,6 +95,7 @@ fun ChatScreen(
     val question by session.question.collectAsStateWithLifecycle()
     val approval by session.approval.collectAsStateWithLifecycle()
     val settings by graph.settings.settings.collectAsStateWithLifecycle()
+    val speaking by graph.speaking.collectAsStateWithLifecycle()
     val commands by graph.quickCommands.commands.collectAsStateWithLifecycle()
     val service by XiaomanAccessibilityService.instance.collectAsStateWithLifecycle()
     val context = LocalContext.current
@@ -186,7 +187,12 @@ fun ChatScreen(
             }
             items(rows, key = { it.id }) { row ->
                 when (row) {
-                    is TimelineRow.Message -> ChatMessage(row.item, onOpenTask)
+                    is TimelineRow.Message -> ChatMessage(
+                        row.item,
+                        onOpenTask,
+                        speakingText = speaking,
+                        onToggleSpeak = graph::toggleSpeaking,
+                    )
                     is TimelineRow.Process -> ProcessCard(row.entries)
                 }
             }

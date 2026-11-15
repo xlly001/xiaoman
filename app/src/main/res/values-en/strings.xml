@@ -145,6 +145,8 @@
     <string name="chat_listening">Listening… speak now</string>
     <string name="chat_copy">Copy</string>
     <string name="chat_copied">Copied</string>
+    <string name="chat_speak">Read aloud</string>
+    <string name="chat_stop_speaking">Stop reading</string>
     <string name="chat_image_count">Images × %1$d</string>
 
     <!-- Attachments -->
@@ -417,7 +419,7 @@
     <string name="settings_media_voice_stella">Stella (female)</string>
     <string name="settings_media_voice_tide">Tide (male)</string>
     <string name="settings_media_read_aloud">Read replies aloud</string>
-    <string name="settings_media_read_aloud_hint">Speak the complete reply with the built-in TTS engine</string>
+    <string name="settings_media_read_aloud_hint">Play every finished reply with the built-in TTS; tap the speaker under a bubble to read it on demand</string>
     <string name="settings_media_ocr_purpose">OCR mode</string>
     <string name="settings_media_ocr_text">Plain text</string>
     <string name="settings_media_ocr_layout">Rich layout</string>

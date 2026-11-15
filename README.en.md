@@ -105,8 +105,11 @@ wash, white rounded cards and one-piece bottom dock of the reference app:
   (`SpeechRecognizer`, Android `TextToSpeech`, vision-model OCR). Settings can also pin “DeepSeek” or
   “System”. The chat dock offers microphone recording, an “Extract text from image” attachment action
   that pastes the result into the composer instead of sending it, and a “Read replies aloud” toggle that
-  speaks the final reply once (never the streaming deltas). Voices are `stella` / `tide`; OCR can run in
-  plain-text or rich-layout mode.
+  speaks the final reply once (never the streaming deltas). Every assistant reply also has its own
+  “Read aloud / Stop reading” button, so a single message can be played on demand; manual and automatic
+  playback are mutually exclusive, with one message speaking at a time. Voices are `stella` / `tide`;
+  OCR can run in plain-text or rich-layout mode. Long-press any message text to drag-select and copy just
+  a fragment, while the assistant bubble keeps its copy-all button.
 - **Human-friendly model setup**: pick a provider (Volcano Ark, OpenAI, DeepSeek, Alibaba Bailian,
   Zhipu, Kimi, SiliconFlow, OpenRouter or custom), enter one key, and tap “Fetch available models” to
   read the provider’s `/models`. Provider metadata (context window, max output, image modality) is used

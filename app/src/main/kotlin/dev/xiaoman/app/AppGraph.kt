@@ -42,9 +42,11 @@ import dev.xiaoman.memory.FileMemoryStore
 import dev.xiaoman.sentinel.PolicySentinel
 import dev.xiaoman.skills.DirectorySkillRepository
 import dev.xiaoman.skills.FileUserSkillStore
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Deferred
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.async
 import kotlinx.coroutines.launch
@@ -93,6 +95,44 @@ class AppGraph(context: Context, private val llm: LlmClientFactory = LlmClients.
     }
 
     val memory by lazy { FileMemoryStore(memoryDir) }
+
+    /**
+     * Text of the message currently being read aloud (auto-read or a tap on one bubble); null when
+     * idle. Keyed by text so the per-message button can show "stop" for the message being spoken.
+     */
+    val speaking = MutableStateFlow<String?>(null)
+    private var speakJob: Job? = null
+
+    /** Read one message aloud, replacing any playback already in progress. */
+    fun speak(text: String) {
+        if (text.isBlank()) return
+        stopSpeaking()
+        speaking.value = text
+        speakJob = scope.launch {
+            try {
+                media.current().tts.speak(text, settings.current.ttsVoice)
+            } catch (cancel: CancellationException) {
+                throw cancel
+            } catch (error: Throwable) {
+                Log.w(TAG, "tts: ${error.message}")
+            } finally {
+                if (speaking.value == text) speaking.value = null
+            }
+        }
+    }
+
+    /** Stop the current utterance, whoever started it. */
+    fun stopSpeaking() {
+        speakJob?.cancel()
+        speakJob = null
+        runCatching { media.current().tts.stop() }
+        speaking.value = null
+    }
+
+    /** Bubble button behaviour: the message being spoken stops, any other message starts. */
+    fun toggleSpeaking(text: String) {
+        if (speaking.value == text) stopSpeaking() else speak(text)
+    }
 
     val skills by lazy { DirectorySkillRepository(listOf(bundledSkillsDir, skillsDir)) }
 
@@ -286,15 +326,12 @@ class AppGraph(context: Context, private val llm: LlmClientFactory = LlmClients.
         scope.launch(Dispatchers.Main.immediate) {
             session.busy.collect { busy -> if (busy) AgentService.start(app) }
         }
-
         // Read the finished reply aloud with the built-in TTS engine. Only the final Reply is
         // spoken (never streaming deltas), so a long answer is synthesized once as one clip.
         scope.launch {
             session.events.collect { event ->
                 if (event is AgentEvent.Reply && event.text.isNotBlank() && settings.current.readRepliesAloud) {
-                    val voice = settings.current.ttsVoice
-                    runCatching { media.current().tts.speak(event.text, voice) }
-                        .onFailure { Log.w(TAG, "tts: ${it.message}") }
+                    speak(event.text)
                 }
             }
         }

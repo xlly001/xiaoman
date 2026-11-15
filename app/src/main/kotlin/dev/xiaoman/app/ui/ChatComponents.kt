@@ -2,12 +2,10 @@ package dev.xiaoman.app.ui
 
 import android.widget.Toast
 import androidx.compose.foundation.BorderStroke
-import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -20,7 +18,9 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.VolumeUp
 import androidx.compose.material.icons.automirrored.outlined.ListAlt
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ChevronRight
@@ -29,6 +29,7 @@ import androidx.compose.material.icons.filled.DeleteSweep
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.Stop
 import androidx.compose.material.icons.outlined.ExpandLess
 import androidx.compose.material.icons.outlined.ExpandMore
 import androidx.compose.material3.DropdownMenu
@@ -263,9 +264,13 @@ internal fun ProcessCard(entries: List<ChatItem.Progress>, initiallyExpanded: Bo
     }
 }
 
-@OptIn(ExperimentalFoundationApi::class)
 @Composable
-internal fun ChatMessage(item: ChatItem, onOpenTask: (String) -> Unit = {}) {
+internal fun ChatMessage(
+    item: ChatItem,
+    onOpenTask: (String) -> Unit = {},
+    speakingText: String? = null,
+    onToggleSpeak: (String) -> Unit = {},
+) {
     val clipboard = LocalClipboardManager.current
     val context = LocalContext.current
     val copied = stringResource(R.string.chat_copied)
@@ -278,10 +283,7 @@ internal fun ChatMessage(item: ChatItem, onOpenTask: (String) -> Unit = {}) {
             Surface(
                 color = MaterialTheme.colorScheme.primaryContainer,
                 shape = RoundedCornerShape(22.dp),
-                modifier = Modifier.fillMaxWidth(0.87f).combinedClickable(
-                    onClick = {},
-                    onLongClick = { copy(item.text) },
-                ),
+                modifier = Modifier.fillMaxWidth(0.87f),
             ) {
                 Column(Modifier.padding(horizontal = 16.dp, vertical = 12.dp)) {
                     if (item.imageCount > 0) {
@@ -292,12 +294,15 @@ internal fun ChatMessage(item: ChatItem, onOpenTask: (String) -> Unit = {}) {
                         )
                     }
                     if (item.text.isNotBlank()) {
-                        Text(
-                            item.text,
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onPrimaryContainer,
-                            modifier = Modifier.padding(top = if (item.imageCount > 0) 4.dp else 0.dp),
-                        )
+                        // Long-press selects any range, so a fragment can be copied without the whole bubble.
+                        SelectionContainer {
+                            Text(
+                                item.text,
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onPrimaryContainer,
+                                modifier = Modifier.padding(top = if (item.imageCount > 0) 4.dp else 0.dp),
+                            )
+                        }
                     }
                 }
             }
@@ -306,20 +311,33 @@ internal fun ChatMessage(item: ChatItem, onOpenTask: (String) -> Unit = {}) {
             Surface(
                 color = MaterialTheme.colorScheme.surfaceContainer,
                 shape = RoundedCornerShape(22.dp),
-                modifier = Modifier.fillMaxWidth(0.94f).combinedClickable(
-                    onClick = {},
-                    onLongClick = { copy(item.text) },
-                ),
+                modifier = Modifier.fillMaxWidth(0.94f),
             ) {
-                Text(chatRichText(item.text), Modifier.padding(horizontal = 16.dp, vertical = 12.dp), style = MaterialTheme.typography.bodyMedium)
+                SelectionContainer {
+                    Text(chatRichText(item.text), Modifier.padding(horizontal = 16.dp, vertical = 12.dp), style = MaterialTheme.typography.bodyMedium)
+                }
             }
-            IconButton(onClick = { copy(item.text) }, modifier = Modifier.size(28.dp)) {
-                Icon(
-                    Icons.Filled.ContentCopy,
-                    contentDescription = stringResource(R.string.chat_copy),
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.size(14.dp),
-                )
+            if (item.text.isNotBlank()) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    IconButton(onClick = { onToggleSpeak(item.text) }, modifier = Modifier.size(28.dp)) {
+                        Icon(
+                            if (speakingText == item.text) Icons.Filled.Stop else Icons.AutoMirrored.Filled.VolumeUp,
+                            contentDescription = stringResource(
+                                if (speakingText == item.text) R.string.chat_stop_speaking else R.string.chat_speak,
+                            ),
+                            tint = if (speakingText == item.text) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.size(15.dp),
+                        )
+                    }
+                    IconButton(onClick = { copy(item.text) }, modifier = Modifier.size(28.dp)) {
+                        Icon(
+                            Icons.Filled.ContentCopy,
+                            contentDescription = stringResource(R.string.chat_copy),
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.size(14.dp),
+                        )
+                    }
+                }
             }
         }
         is ChatItem.Question -> NoticeCard(
