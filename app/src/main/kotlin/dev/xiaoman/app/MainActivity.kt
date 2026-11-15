@@ -1,5 +1,6 @@
 package dev.xiaoman.app
 
+import android.content.Context
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -12,6 +13,10 @@ import dev.xiaoman.app.ui.XiaomanRoot
 import dev.xiaoman.app.ui.XiaomanTheme
 
 class MainActivity : ComponentActivity() {
+    override fun attachBaseContext(newBase: Context) {
+        super.attachBaseContext(AppLocale.wrap(newBase))
+    }
+
     override fun onStart() {
         super.onStart()
         (application as XiaomanApp).graph.uiVisible.value = true

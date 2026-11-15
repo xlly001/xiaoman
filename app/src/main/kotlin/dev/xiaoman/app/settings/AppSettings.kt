@@ -48,9 +48,13 @@ data class AppSettings(
     val models: List<ModelProfile> = emptyList(),
     /** system / light / dark. */
     val themeMode: String = THEME_SYSTEM,
+    /** system / zh / en; applied by [dev.xiaoman.app.AppLocale]. */
+    val language: String = LANGUAGE_SYSTEM,
     /** Send a voice transcript immediately instead of only filling the composer. */
     val voiceAutoSend: Boolean = false,
     val requestTimeoutSeconds: Int = 120,
+    val notificationsEnabled: Boolean = true,
+    val chatHistoryLimit: Int = 500,
 ) {
     val configured: Boolean get() = chat.configured && operator.configured
 
@@ -62,9 +66,13 @@ data class AppSettings(
     companion object {
         val MAX_STEPS_RANGE = 1..200
         val REQUEST_TIMEOUT_RANGE = 10..300
+        val HISTORY_LIMIT_RANGE = 50..2_000
         const val THEME_SYSTEM = "system"
         const val THEME_LIGHT = "light"
         const val THEME_DARK = "dark"
+        const val LANGUAGE_SYSTEM = "system"
+        const val LANGUAGE_ZH = "zh"
+        const val LANGUAGE_EN = "en"
     }
 }
 
@@ -79,8 +87,11 @@ data class SettingsForm(
     val providerId: String = Providers.ark.id,
     val models: List<ModelProfile> = emptyList(),
     val themeMode: String = AppSettings.THEME_SYSTEM,
+    val language: String = AppSettings.LANGUAGE_SYSTEM,
     val voiceAutoSend: Boolean = false,
     val requestTimeout: String = "120",
+    val notificationsEnabled: Boolean = true,
+    val chatHistoryLimit: String = "500",
 ) {
     data class ModelForm(
         val baseUrl: String = ModelSettings.DEFAULT_BASE_URL,
@@ -124,11 +135,14 @@ data class SettingsForm(
     val maxStepsValid: Boolean get() = maxSteps.trim().toIntOrNull()?.let { it in AppSettings.MAX_STEPS_RANGE } == true
     val requestTimeoutValid: Boolean get() =
         requestTimeout.trim().toIntOrNull()?.let { it in AppSettings.REQUEST_TIMEOUT_RANGE } == true
+    val historyLimitValid: Boolean get() =
+        chatHistoryLimit.trim().toIntOrNull()?.let { it in AppSettings.HISTORY_LIMIT_RANGE } == true
 
     /** Null while a field is invalid. */
     fun toSettings(): AppSettings? {
         val steps = maxSteps.trim().toIntOrNull()?.takeIf { it in AppSettings.MAX_STEPS_RANGE } ?: return null
         val timeout = requestTimeout.trim().toIntOrNull()?.takeIf { it in AppSettings.REQUEST_TIMEOUT_RANGE } ?: return null
+        val historyLimit = chatHistoryLimit.trim().toIntOrNull()?.takeIf { it in AppSettings.HISTORY_LIMIT_RANGE } ?: return null
         return AppSettings(
             chat = (chat.toSettings() ?: return null).copy(timeoutSeconds = timeout.toLong()),
             operator = (operator.toSettings() ?: return null).copy(timeoutSeconds = timeout.toLong()),
@@ -137,8 +151,11 @@ data class SettingsForm(
             providerId = providerId,
             models = models,
             themeMode = themeMode,
+            language = language,
             voiceAutoSend = voiceAutoSend,
             requestTimeoutSeconds = timeout,
+            notificationsEnabled = notificationsEnabled,
+            chatHistoryLimit = historyLimit,
         )
     }
 
@@ -151,8 +168,11 @@ data class SettingsForm(
             providerId = s.providerId,
             models = s.models,
             themeMode = s.themeMode,
+            language = s.language,
             voiceAutoSend = s.voiceAutoSend,
             requestTimeout = s.requestTimeoutSeconds.toString(),
+            notificationsEnabled = s.notificationsEnabled,
+            chatHistoryLimit = s.chatHistoryLimit.toString(),
         )
 
         fun parseTemperature(text: String): Double? = text.trim().toDoubleOrNull()?.takeIf { it in 0.0..2.0 }

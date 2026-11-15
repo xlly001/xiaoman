@@ -37,6 +37,7 @@ data class SessionTexts(
     val approvedOnce: (String) -> String = { "已允许：$it" },
     val approvedTask: (String) -> String = { "本次任务都允许：$it" },
     val denied: (String) -> String = { "已拒绝：$it" },
+    val approvalPending: (String) -> String = { "等待确认：$it" },
 )
 
 class PendingQuestion(val id: Long, val taskId: String, val question: String, val takeover: Boolean) {
@@ -68,11 +69,16 @@ class AgentSession(
     private val ready: suspend () -> Unit = {},
     /** Optional local persistence; null keeps the conversation in memory (tests, web runs). */
     private val history: ChatHistoryStore? = null,
+    /** Dynamic history cap from Settings; read on each append. */
+    private val historyLimit: () -> Int = { MAX_ITEMS },
     /** Localized event text; the default Chinese object keeps JVM tests and the web server unchanged. */
     private val stepText: StepTextFormatter = StepText,
 ) : UserChannel, ApprovalGateway {
 
-    private val restored = history?.load().orEmpty()
+    // Load with the absolute cap instead of reading Settings here: the session is built during
+    // Application.onCreate, and settings live behind EncryptedSharedPreferences. The live
+    // [historyLimit] still applies on every append/save, so lowering the cap trims the file.
+    private val restored = history?.load(limit = 2_000).orEmpty()
     private val ids = AtomicLong(restored.maxOfOrNull { it.id } ?: 0L)
     private val running = AtomicBoolean(false)
     private val persistMutex = Mutex()
@@ -206,7 +212,7 @@ class AgentSession(
         val pending = PendingApproval(ids.incrementAndGet(), request)
         val before = _status.value
         _approval.value = pending
-        _status.value = "等待确认：${request.prompt}"
+        _status.value = texts.approvalPending(request.prompt)
         try {
             val answer = pending.answer.await()
             val line = when {
@@ -265,7 +271,7 @@ class AgentSession(
     }
 
     private fun add(item: ChatItem) {
-        _items.update { (it + item).takeLast(MAX_ITEMS) }
+        _items.update { (it + item).takeLast(historyLimit().coerceIn(20, 2_000)) }
         persist()
     }
 

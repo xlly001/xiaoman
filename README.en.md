@@ -49,25 +49,32 @@ This fork builds on the main course version with an Open Muse inspired interface
 grey bubbles, one blue accent, 22dp cards, system sans-serif) and these additions:
 
 - **Persistent conversations**: chat rows are stored in `chat/history.json` and survive a restart;
-  the chat menu can clear them without touching memory or skills.
-- **Quick commands**: up to eight editable shortcut cards on the empty chat screen; tapping one fills
-  the composer, and the bookmark button saves the current draft as a shortcut.
+  the chat menu can clear them without touching memory or skills. The default cap is 500 rows and can
+  be changed to 50–2000 in Settings.
+- **Quick commands**: six default cards (notebook, water reminder, preference, parcel tracking,
+  daily summary, translate) and up to eight editable shortcuts; tapping one fills the composer, and
+  the bookmark button saves the current draft as a shortcut.
 - **Voice input**: the composer microphone uses the system speech recognizer; recording permission and
   recognizer failures produce readable messages.
 - **Human-friendly model setup**: pick a provider (Volcano Ark, OpenAI, DeepSeek, Alibaba Bailian,
   Zhipu, Kimi, SiliconFlow, OpenRouter or custom), enter one key, and tap “Fetch available models” to
-  read the provider’s `/models`. Each model expands to display name, max output, context window,
-  temperature and vision support; choose one for chat and one for operation, then save the whole list.
+  read the provider’s `/models`. Provider metadata (context window, max output, image modality) is used
+  first, with model-family estimates only as a fallback. Each model expands to display name, max output,
+  context window, temperature and vision support; editing the selected model updates the real chat or
+  operator config, and saving persists the whole list.
 - **Model self-check**: Settings can probe the chat and operator models separately. The operator probe
   includes a 1×1 PNG so a text-only model cannot pass; 401, 404, 429 and network failures get specific
   guidance.
-- **More settings**: theme (system/light/dark), send voice transcripts automatically, request timeout,
-  open accessibility settings, clear conversation, clear traces, and version/local-data information.
+- **More settings**: theme (system/light/dark, applied immediately), language (system/Simplified
+  Chinese/English, applied immediately), send voice transcripts automatically, task and approval
+  notification toggle, request timeout, conversation history cap, open accessibility settings, clear
+  conversation, clear traces, and version/local-data information.
 - **Skill and memory management**: search, details, create and one-sentence edit on the Skills screen;
   `skill_read` / `skill_save` / `skill_delete` write user skills only after an explicit chat confirmation.
   The Memory screen can create, edit and delete notes.
 - **Internationalization**: every new UI string lives in resources, with Chinese in
-  `app/src/main/res/values/strings.xml` and English in `values-en/strings.xml`.
+  `app/src/main/res/values/strings.xml` and English in `values-en/strings.xml`; both files currently
+  hold 307 matching keys, and the app language can be switched in Settings.
 
 ### Build and test (Windows)
 

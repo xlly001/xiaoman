@@ -115,7 +115,7 @@ class StatusOverlay(private val context: Context) {
             text = pendingText
             minHeight = dp(48)
             gravity = Gravity.CENTER_VERTICAL
-            contentDescription = "查看小满的任务"
+            contentDescription = context.getString(R.string.xiaoman_overlay_open_description)
             setOnClickListener { onOpen() }
             // Read status changes to TalkBack users.
             accessibilityLiveRegion = View.ACCESSIBILITY_LIVE_REGION_POLITE

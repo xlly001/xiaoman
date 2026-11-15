@@ -2,6 +2,7 @@ package dev.xiaoman.app.settings
 
 import androidx.annotation.StringRes
 import dev.xiaoman.app.R
+import dev.xiaoman.llm.RemoteModel
 import kotlinx.serialization.Serializable
 
 /** A model locally saved from a provider's `/models` response, with editable defaults. */
@@ -21,6 +22,16 @@ data class ModelProfile(
 
 /** Best-effort defaults; the user can expand each row and correct them before saving. */
 object ModelDefaults {
+    /** Prefer metadata returned by the provider; fall back to model-family estimates. */
+    fun profile(remote: RemoteModel): ModelProfile {
+        val fallback = profile(remote.id)
+        return fallback.copy(
+            maxTokens = remote.maxOutputTokens ?: fallback.maxTokens,
+            contextWindow = remote.contextLength ?: fallback.contextWindow,
+            supportsVision = remote.supportsVision ?: fallback.supportsVision,
+        )
+    }
+
     fun profile(id: String): ModelProfile {
         val lower = id.lowercase()
         val reasoning = lower.startsWith("o1") || lower.startsWith("o3") || lower.startsWith("o4")

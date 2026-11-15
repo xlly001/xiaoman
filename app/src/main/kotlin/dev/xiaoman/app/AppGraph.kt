@@ -81,13 +81,15 @@ class AppGraph(context: Context, private val llm: LlmClientFactory = LlmClients.
     /** Chat and quick-command files live outside the memory folder so they are easy to back up or reset. */
     private val chatDir = File(externalRoot, "chat")
 
-    val chatHistory by lazy { ChatHistoryStore(File(chatDir, "history.json")) }
+    val chatHistory by lazy {
+        ChatHistoryStore(File(chatDir, "history.json")) { settings.current.chatHistoryLimit }
+    }
 
     val quickCommands by lazy {
         QuickCommandStore(File(chatDir, "quick-commands.json"), defaultQuickCommands())
     }
 
-    val notifier by lazy { Notifier(app) }
+    val notifier by lazy { Notifier(app) { settings.current.notificationsEnabled } }
 
     val reminderScheduler by lazy { AlarmReminderScheduler(app) }
 
@@ -156,9 +158,11 @@ class AppGraph(context: Context, private val llm: LlmClientFactory = LlmClients.
                 approvedOnce = { app.getString(R.string.approval_resolved_allowed, it) },
                 approvedTask = { app.getString(R.string.approval_resolved_task, it) },
                 denied = { app.getString(R.string.approval_resolved_denied, it) },
+                approvalPending = { app.getString(R.string.status_approval_pending, it) },
             ),
             ready = { startup.await() },
             history = chatHistory,
+            historyLimit = { settings.current.chatHistoryLimit },
             stepText = AndroidStepText(app),
         )
     }
@@ -188,6 +192,24 @@ class AppGraph(context: Context, private val llm: LlmClientFactory = LlmClients.
             id = "default-preference",
             title = app.getString(R.string.quick_default_preference_title),
             prompt = app.getString(R.string.quick_default_preference_prompt),
+            icon = QuickCommand.ICON_MEMORY,
+        ),
+        QuickCommand(
+            id = "default-package",
+            title = app.getString(R.string.quick_default_package_title),
+            prompt = app.getString(R.string.quick_default_package_prompt),
+            icon = QuickCommand.ICON_PLAN,
+        ),
+        QuickCommand(
+            id = "default-summary",
+            title = app.getString(R.string.quick_default_summary_title),
+            prompt = app.getString(R.string.quick_default_summary_prompt),
+            icon = QuickCommand.ICON_SPARK,
+        ),
+        QuickCommand(
+            id = "default-translate",
+            title = app.getString(R.string.quick_default_translate_title),
+            prompt = app.getString(R.string.quick_default_translate_prompt),
             icon = QuickCommand.ICON_MEMORY,
         ),
     )
@@ -226,7 +248,7 @@ class AppGraph(context: Context, private val llm: LlmClientFactory = LlmClients.
     fun start() {
         startup = scope.async(Dispatchers.IO) { prepareSkills() }
         notifier.createChannels()
-        OverlayController(session, accessibilityDevice, uiVisible = uiVisible).start(scope)
+        OverlayController(session, accessibilityDevice, uiVisible = uiVisible, fallbackTitle = app.getString(R.string.app_name)).start(scope)
         scope.launch(Dispatchers.Main.immediate) {
             session.busy.collect { busy -> if (busy) AgentService.start(app) }
         }

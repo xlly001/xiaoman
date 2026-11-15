@@ -25,11 +25,15 @@ class ModelCatalogClientTest {
         withServer { server ->
             server.enqueue(
                 MockResponse().setBody(
-                    """{"data":[{"id":"gpt-4o","owned_by":"openai"},{"id":"deepseek-chat"}]}""",
+                    """{"data":[{"id":"gpt-4o","owned_by":"openai","context_length":128000,"max_completion_tokens":16384,"architecture":{"input_modalities":["text","image"]}},{"id":"deepseek-chat"}]}""",
                 ),
             )
             val models = ModelCatalogClient().list(server.url("/v1").toString(), "secret-key")
             assertEquals(listOf("deepseek-chat", "gpt-4o"), models.map { it.id })
+            val gpt = models.first { it.id == "gpt-4o" }
+            assertEquals(128_000, gpt.contextLength)
+            assertEquals(16_384, gpt.maxOutputTokens)
+            assertEquals(true, gpt.supportsVision)
             val request = server.takeRequest()
             assertEquals("/v1/models", request.path)
             assertEquals("Bearer secret-key", request.getHeader("Authorization"))

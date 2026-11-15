@@ -1,5 +1,8 @@
 package dev.xiaoman.app.ui
 
+import android.app.Activity
+import android.content.Context
+import android.content.ContextWrapper
 import android.content.Intent
 import android.provider.Settings
 import androidx.compose.animation.AnimatedVisibility
@@ -157,7 +160,7 @@ fun SettingsScreen(graph: AppGraph) {
         scope.launch {
             try {
                 val remote = graph.listModels(form.chat.baseUrl, form.chat.apiKey)
-                val profiles = remote.map { ModelDefaults.profile(it.id) }
+                val profiles = remote.map { ModelDefaults.profile(it) }
                 form = form.copy(models = profiles)
                 val firstChat = profiles.firstOrNull { it.chatCapable }
                 val firstVision = profiles.firstOrNull { it.chatCapable && it.supportsVision }
@@ -177,7 +180,12 @@ fun SettingsScreen(graph: AppGraph) {
     }
 
     fun updateProfile(updated: ModelProfile) {
-        form = form.copy(models = form.models.map { if (it.id == updated.id) updated else it })
+        form = form.copy(
+            models = form.models.map { if (it.id == updated.id) updated else it },
+            // Editing the selected model must change what will actually be saved for chat/operator.
+            chat = if (form.chat.model == updated.id) form.chat.withProfile(updated) else form.chat,
+            operator = if (form.operator.model == updated.id) form.operator.withProfile(updated) else form.operator,
+        )
         saved = false
     }
 
@@ -403,12 +411,44 @@ fun SettingsScreen(graph: AppGraph) {
                             selected = form.themeMode == mode,
                             onClick = {
                                 form = form.copy(themeMode = mode)
+                                // Theme should preview immediately, not only after "Save all".
+                                store.save(store.current.copy(themeMode = mode))
                                 saved = false
                             },
                             label = { Text(stringResource(label)) },
                         )
                     }
                 }
+                Text(
+                    stringResource(R.string.settings_language),
+                    style = MaterialTheme.typography.bodyMedium,
+                    modifier = Modifier.padding(top = 6.dp),
+                )
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    listOf(
+                        AppSettings.LANGUAGE_SYSTEM to R.string.settings_language_system,
+                        AppSettings.LANGUAGE_ZH to R.string.settings_language_zh,
+                        AppSettings.LANGUAGE_EN to R.string.settings_language_en,
+                    ).forEach { (language, label) ->
+                        FilterChip(
+                            selected = form.language == language,
+                            onClick = {
+                                val next = form.copy(language = language)
+                                form = next
+                                // Persist valid edits with the language so recreate() keeps them.
+                                store.save(next.toSettings() ?: store.current.copy(language = language))
+                                saved = false
+                                context.activity()?.recreate()
+                            },
+                            label = { Text(stringResource(label)) },
+                        )
+                    }
+                }
+                Text(
+                    stringResource(R.string.settings_language_hint),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
             }
         }
 
@@ -432,6 +472,25 @@ fun SettingsScreen(graph: AppGraph) {
         }
 
         item {
+            SettingsCard(title = stringResource(R.string.settings_notifications)) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                        Text(stringResource(R.string.settings_notifications_enabled))
+                        Text(
+                            stringResource(R.string.settings_notifications_hint),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                    Switch(checked = form.notificationsEnabled, onCheckedChange = {
+                        form = form.copy(notificationsEnabled = it)
+                        saved = false
+                    })
+                }
+            }
+        }
+
+        item {
             SettingsCard(title = stringResource(R.string.settings_advanced)) {
                 OutlinedTextField(
                     value = form.requestTimeout,
@@ -445,6 +504,28 @@ fun SettingsScreen(graph: AppGraph) {
                         Text(
                             if (form.requestTimeoutValid) {
                                 stringResource(R.string.settings_request_timeout_hint)
+                            } else {
+                                stringResource(R.string.settings_invalid_number)
+                            },
+                        )
+                    },
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                    singleLine = true,
+                    shape = RoundedCornerShape(16.dp),
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                OutlinedTextField(
+                    value = form.chatHistoryLimit,
+                    onValueChange = {
+                        form = form.copy(chatHistoryLimit = it)
+                        saved = false
+                    },
+                    label = { Text(stringResource(R.string.settings_history_limit)) },
+                    isError = !form.historyLimitValid,
+                    supportingText = {
+                        Text(
+                            if (form.historyLimitValid) {
+                                stringResource(R.string.settings_history_limit_hint)
                             } else {
                                 stringResource(R.string.settings_invalid_number)
                             },
@@ -828,6 +909,21 @@ private fun fetchErrorText(error: FetchError): String = when {
     error.message.contains("timeout", ignoreCase = true) ||
         error.message.contains("failed", ignoreCase = true) -> stringResource(R.string.settings_test_network)
     else -> stringResource(R.string.settings_fetch_failed, error.message.take(160))
+}
+
+private fun SettingsForm.ModelForm.withProfile(profile: ModelProfile) = copy(
+    temperature = profile.temperature?.toString().orEmpty(),
+    maxTokens = profile.maxTokens?.toString().orEmpty(),
+    contextWindow = profile.contextWindow?.toString().orEmpty(),
+    supportsVision = profile.supportsVision,
+    displayName = profile.title,
+)
+
+/** Compose's LocalContext may be a theme wrapper; walk up to the hosting Activity. */
+private tailrec fun Context.activity(): Activity? = when (this) {
+    is Activity -> this
+    is ContextWrapper -> baseContext.activity()
+    else -> null
 }
 
 @Composable

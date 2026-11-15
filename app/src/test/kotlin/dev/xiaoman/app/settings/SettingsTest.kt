@@ -1,6 +1,7 @@
 package dev.xiaoman.app.settings
 
 import android.content.Context
+import dev.xiaoman.app.AppLocale
 import org.robolectric.RuntimeEnvironment
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -62,6 +63,16 @@ class SettingsTest {
         assertNull(form.copy(chat = form.chat.copy(temperature = "")).toSettings()?.chat?.temperature)
     }
 
+    @Test fun `saved language overrides the activity resources`() {
+        context.getSharedPreferences("settings", Context.MODE_PRIVATE)
+            .edit().putString("appearance.language", AppSettings.LANGUAGE_ZH).commit()
+        try {
+            assertEquals("设置", AppLocale.wrap(context).getString(dev.xiaoman.app.R.string.settings_title))
+        } finally {
+            java.util.Locale.setDefault(java.util.Locale.ENGLISH)
+        }
+    }
+
     @Test fun `catalog, theme, voice and timeout round trip`() {
         val rich = sample.copy(
             chat = sample.chat.copy(timeoutSeconds = 180),
@@ -69,8 +80,11 @@ class SettingsTest {
             providerId = Providers.deepseek.id,
             models = listOf(ModelDefaults.profile("deepseek-chat"), ModelDefaults.profile("gpt-4o")),
             themeMode = AppSettings.THEME_DARK,
+            language = AppSettings.LANGUAGE_EN,
             voiceAutoSend = true,
             requestTimeoutSeconds = 180,
+            notificationsEnabled = false,
+            chatHistoryLimit = 800,
         )
         store().save(rich)
         assertEquals(rich, store().current)

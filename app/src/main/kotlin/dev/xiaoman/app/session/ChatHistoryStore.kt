@@ -17,14 +17,20 @@ private data class ChatHistoryFile(val version: Int = 1, val items: List<ChatIte
  * The file is plain, user-inspectable JSON. Writes are atomic; a corrupt or unreadable file is
  * treated as an empty history instead of blocking App startup.
  */
-class ChatHistoryStore(private val file: File) {
+class ChatHistoryStore(
+    private val file: File,
+    /** Read dynamically so a Settings change applies without rebuilding the graph. */
+    private val maxItems: () -> Int = { AgentSession.MAX_ITEMS },
+) {
     private val json = Json {
         ignoreUnknownKeys = true
         encodeDefaults = true
     }
 
+    private fun limit(): Int = maxItems().coerceIn(20, 2_000)
+
     @Synchronized
-    fun load(limit: Int = AgentSession.MAX_ITEMS): List<ChatItem> = runCatching {
+    fun load(limit: Int = limit()): List<ChatItem> = runCatching {
         if (!file.isFile) return emptyList()
         json.decodeFromString<ChatHistoryFile>(file.readText()).items.takeLast(limit)
     }.getOrDefault(emptyList())
@@ -34,7 +40,7 @@ class ChatHistoryStore(private val file: File) {
     fun save(items: List<ChatItem>): Boolean = runCatching {
         val parent = file.parentFile ?: return false
         if (!parent.isDirectory && !parent.mkdirs()) return false
-        val text = json.encodeToString(ChatHistoryFile(items = items.takeLast(AgentSession.MAX_ITEMS)))
+        val text = json.encodeToString(ChatHistoryFile(items = items.takeLast(limit())))
         val temp = File.createTempFile(".history-", ".tmp", parent)
         try {
             FileOutputStream(temp).use { out ->

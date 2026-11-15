@@ -15,7 +15,11 @@ import dev.xiaoman.app.session.PendingApproval
 import dev.xiaoman.app.session.PendingQuestion
 
 /** Notification channels and the four notifications: status (foreground service), approval, question, reminder. */
-class Notifier(private val context: Context) {
+class Notifier(
+    private val context: Context,
+    /** User setting; the foreground-service notification still posts because Android requires it. */
+    private val enabled: () -> Boolean = { true },
+) {
     private val manager = context.getSystemService(NotificationManager::class.java)
 
     fun createChannels() {
@@ -57,7 +61,7 @@ class Notifier(private val context: Context) {
 
     fun showApproval(pending: PendingApproval?) {
         if (pending == null) return manager.cancel(ID_APPROVAL)
-        if (!allowed()) return
+        if (!enabledAndAllowed()) return manager.cancel(ID_APPROVAL)
         val notification = NotificationCompat.Builder(context, CHANNEL_ATTENTION)
             .setSmallIcon(R.drawable.ic_stat_xiaoman)
             .setContentTitle(context.getString(R.string.approval_title))
@@ -76,7 +80,7 @@ class Notifier(private val context: Context) {
 
     fun showQuestion(pending: PendingQuestion?) {
         if (pending == null) return manager.cancel(ID_QUESTION)
-        if (!allowed()) return
+        if (!enabledAndAllowed()) return manager.cancel(ID_QUESTION)
         val notification = NotificationCompat.Builder(context, CHANNEL_ATTENTION)
             .setSmallIcon(R.drawable.ic_stat_xiaoman)
             .setContentTitle(context.getString(if (pending.takeover) R.string.chat_takeover_label else R.string.notification_question))
@@ -91,7 +95,7 @@ class Notifier(private val context: Context) {
 
     /** Heads-up notification posted when a reminder_set alarm fires. */
     fun showReminder(id: Int, text: String) {
-        if (!allowed()) return
+        if (!enabledAndAllowed()) return
         val notification = NotificationCompat.Builder(context, CHANNEL_REMINDERS)
             .setSmallIcon(R.drawable.ic_stat_xiaoman)
             .setContentTitle(context.getString(R.string.reminder_title))
@@ -108,6 +112,8 @@ class Notifier(private val context: Context) {
     private fun allowed(): Boolean =
         Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU ||
             ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED
+
+    private fun enabledAndAllowed(): Boolean = enabled() && allowed()
 
     private fun openApp(): PendingIntent = PendingIntent.getActivity(
         context,

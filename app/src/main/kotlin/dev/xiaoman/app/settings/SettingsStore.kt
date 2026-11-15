@@ -33,8 +33,11 @@ class SettingsStore(private val plain: SharedPreferences, internal val secret: S
             putString(PROVIDER_ID, settings.providerId)
             putString(MODELS, json.encodeToString(settings.models))
             putString(THEME, settings.themeMode)
+            putString(LANGUAGE, settings.language)
             putBoolean(VOICE_AUTO_SEND, settings.voiceAutoSend)
             putInt(REQUEST_TIMEOUT, settings.requestTimeoutSeconds)
+            putBoolean(NOTIFICATIONS_ENABLED, settings.notificationsEnabled)
+            putInt(CHAT_HISTORY_LIMIT, settings.chatHistoryLimit)
         }
         secret.edit(commit = true) {
             putString(CHAT + API_KEY, settings.chat.apiKey)
@@ -62,8 +65,11 @@ class SettingsStore(private val plain: SharedPreferences, internal val secret: S
             // Old installs have no catalog key; seed it from the two active models. A saved empty list stays empty.
             models = if (rawModels == null) seedProfiles(chat, operator) else saved,
             themeMode = plain.getString(THEME, null) ?: defaults.themeMode,
+            language = plain.getString(LANGUAGE, null) ?: defaults.language,
             voiceAutoSend = plain.getBoolean(VOICE_AUTO_SEND, defaults.voiceAutoSend),
             requestTimeoutSeconds = timeout,
+            notificationsEnabled = plain.getBoolean(NOTIFICATIONS_ENABLED, defaults.notificationsEnabled),
+            chatHistoryLimit = plain.getInt(CHAT_HISTORY_LIMIT, defaults.chatHistoryLimit),
         )
     }
 
@@ -133,8 +139,11 @@ class SettingsStore(private val plain: SharedPreferences, internal val secret: S
         private const val PROVIDER_ID = "provider.id"
         private const val MODELS = "provider.models"
         private const val THEME = "appearance.theme"
+        private const val LANGUAGE = "appearance.language"
         private const val VOICE_AUTO_SEND = "chat.voiceAutoSend"
         private const val REQUEST_TIMEOUT = "model.requestTimeout"
+        private const val NOTIFICATIONS_ENABLED = "notifications.enabled"
+        private const val CHAT_HISTORY_LIMIT = "chat.historyLimit"
         private const val MAX_STEPS = "agent.maxSteps"
         private const val LEARN = "agent.learnFromSuccess"
         private val json = Json { ignoreUnknownKeys = true; encodeDefaults = true }

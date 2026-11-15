@@ -1,5 +1,6 @@
 package dev.xiaoman.app.settings
 
+import dev.xiaoman.llm.RemoteModel
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
@@ -28,6 +29,15 @@ class ModelCatalogDefaultsTest {
         val o3 = ModelDefaults.profile("o3-mini")
         assertNull(o3.temperature)
         assertNull(o3.maxTokens)
+    }
+
+    @Test fun `provider metadata overrides family estimates`() {
+        val profile = ModelDefaults.profile(
+            RemoteModel("custom-model", contextLength = 1_000_000, maxOutputTokens = 64_000, supportsVision = true),
+        )
+        assertEquals(1_000_000, profile.contextWindow)
+        assertEquals(64_000, profile.maxTokens)
+        assertTrue(profile.supportsVision)
     }
 
     @Test fun `provider detection matches known base urls and falls back to custom`() {

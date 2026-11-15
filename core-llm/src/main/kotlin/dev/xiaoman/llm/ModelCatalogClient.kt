@@ -7,14 +7,27 @@ import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.booleanOrNull
 import kotlinx.serialization.json.contentOrNull
+import kotlinx.serialization.json.intOrNull
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import java.io.IOException
 import java.util.concurrent.TimeUnit
 
-/** One model returned by an OpenAI-compatible `GET /models` endpoint. */
-data class RemoteModel(val id: String, val ownedBy: String? = null)
+/**
+ * One model returned by an OpenAI-compatible `GET /models` endpoint.
+ *
+ * OpenRouter and several gateways include context/output/vision metadata; plain OpenAI/DeepSeek
+ * responses only have [id], so callers fall back to model-family defaults.
+ */
+data class RemoteModel(
+    val id: String,
+    val ownedBy: String? = null,
+    val contextLength: Int? = null,
+    val maxOutputTokens: Int? = null,
+    val supportsVision: Boolean? = null,
+)
 
 /**
  * Lists models from an OpenAI-compatible provider.
@@ -71,7 +84,28 @@ class ModelCatalogClient internal constructor(private val http: OkHttpClient) {
             val objectValue = element as? JsonObject ?: return@mapNotNull null
             val id = (objectValue["id"] as? JsonPrimitive)?.contentOrNull
                 ?: (objectValue["name"] as? JsonPrimitive)?.contentOrNull
-            id?.trim()?.takeIf { it.isNotEmpty() }?.let { RemoteModel(it, objectValue.string("owned_by")) }
+            id?.trim()?.takeIf { it.isNotEmpty() }?.let { modelId ->
+                val topProvider = objectValue["top_provider"] as? JsonObject
+                val architecture = objectValue["architecture"] as? JsonObject
+                val modalities = (architecture?.get("input_modalities") as? JsonArray)
+                    ?.mapNotNull { (it as? JsonPrimitive)?.contentOrNull }
+                val capabilities = objectValue["capabilities"] as? JsonObject
+                RemoteModel(
+                    id = modelId,
+                    ownedBy = objectValue.string("owned_by"),
+                    contextLength = objectValue.int("context_length")
+                        ?: objectValue.int("context_window")
+                        ?: objectValue.int("max_context_length"),
+                    maxOutputTokens = objectValue.int("max_completion_tokens")
+                        ?: objectValue.int("max_output_tokens")
+                        ?: topProvider?.int("max_completion_tokens"),
+                    supportsVision = when {
+                        modalities != null -> "image" in modalities
+                        else -> (objectValue["supports_vision"] as? JsonPrimitive)?.booleanOrNull
+                            ?: (capabilities?.get("vision") as? JsonPrimitive)?.booleanOrNull
+                    },
+                )
+            }
         }.distinctBy { it.id }.sortedBy { it.id.lowercase() }
     }
 
@@ -99,6 +133,7 @@ class ModelCatalogClient internal constructor(private val http: OkHttpClient) {
         if (apiKey.isBlank()) text else text.replace(apiKey, "***")
 
     private fun JsonObject.string(key: String): String? = (this[key] as? JsonPrimitive)?.contentOrNull
+    private fun JsonObject.int(key: String): Int? = (this[key] as? JsonPrimitive)?.intOrNull
 
     private companion object {
         val json = Json { ignoreUnknownKeys = true }

@@ -111,12 +111,13 @@ Agent 会按目标检索 `howto` 笔记，把命中结果放进操作提示词�
 
 | 内容 | 文件 | 手机位置 / 说明 |
 |---|---|---|
-| 会话历史 | `app/session/ChatHistoryStore.kt` | `<external files>/chat/history.json`，最近 500 条，原子写入；「清空会话」只删这个文件 |
-| 常用指令 | `app/quick/QuickCommandStore.kt` | `<external files>/chat/quick-commands.json`，最多 8 条，默认三条由多语言资源生成 |
+| 会话历史 | `app/session/ChatHistoryStore.kt` | `<external files>/chat/history.json`，默认 500 条，可在设置中调为 50–2000；原子写入；「清空会话」只删这个文件 |
+| 常用指令 | `app/quick/QuickCommandStore.kt` | `<external files>/chat/quick-commands.json`，最多 8 条，默认六条由多语言资源生成 |
 | 模型自检 | `core-llm/ModelProbe.kt` | 设置页「测试连接」发一条最小请求；操作模型会附带 1×1 PNG，验证图片输入 |
-| 模型目录 | `core-llm/ModelCatalogClient.kt` | 调厂商 OpenAI 兼容的 `GET {baseUrl}/models`；解析 `data[]`/`models[]`，401/404/429 交给 UI 诊断 |
-| 服务商预设 | `app/settings/ModelCatalog.kt` | 火山方舟/OpenAI/DeepSeek/百炼/智谱/Kimi/硅基流动/OpenRouter/自定义；`ModelDefaults` 估算视觉、输出、上下文默认值 |
+| 模型目录 | `core-llm/ModelCatalogClient.kt` | 调厂商 OpenAI 兼容的 `GET {baseUrl}/models`；解析 `data[]`/`models[]` 与上下文/最大输出/图片模态元数据，401/404/429 交给 UI 诊断 |
+| 服务商预设 | `app/settings/ModelCatalog.kt` | 火山方舟/OpenAI/DeepSeek/百炼/智谱/Kimi/硅基流动/OpenRouter/自定义；`ModelDefaults` 只在厂商未返回元数据时估算 |
 | 语音输入 | `app/ui/VoiceInput.kt` | 系统 `SpeechRecognizer`；只接受最终识别结果，权限被拒绝时给出可读提示 |
+| 应用语言 | `app/AppLocale.kt` | 读普通设置 `appearance.language`，`MainActivity.attachBaseContext` 覆盖资源；切换后重建 Activity |
 | 视觉主题 | `app/ui/Theme.kt` | Open Muse 风格：近白纸面、灰色气泡、蓝色强调、22dp 圆角、系统无衬线字体 |
 
 ### 模型目录与设置持久化
@@ -132,8 +133,18 @@ Agent 会按目标检索 `howto` 笔记，把命中结果放进操作提示词�
   如果用户主动把目录保存为空，则保持为空，不自动回填。
 - 拉取失败时：401/403 提示 Key 或开通问题；404 提示该厂商没有 `/models`，引导手动添加模型 ID；
   429 提示额度；网络错误提示检查网络。手动添加的模型走同一套 `ModelProfile` 和保存逻辑。
-- 设置页的其他项：主题 `appearance.theme`（system/light/dark）、语音识别后自动发送
-  `chat.voiceAutoSend`、请求超时 `model.requestTimeout`（10–300 秒，写进两个 `ModelConfig`）。
+- 厂商若返回 `context_length`/`context_window`/`max_context_length`、
+  `max_completion_tokens`/`max_output_tokens`、`architecture.input_modalities` 或
+  `supports_vision`/`capabilities.vision`，`ModelDefaults.profile(RemoteModel)` 优先采用；
+  缺失时才回退到模型族估算（未知族为 8192 / 32768 / 0.7）。
+- 展开模型行编辑已选中的聊天/操作模型时，`updateProfile` 会把改动同步回写 `form.chat` /
+  `form.operator`，避免「看起来改了、保存后没生效」。
+- 设置页其他项：主题 `appearance.theme`（system/light/dark，选择即保存）、语言
+  `appearance.language`（system/zh/en，选择即保存并重建 Activity）、语音识别后自动发送
+  `chat.voiceAutoSend`、通知开关 `notifications.enabled`、请求超时 `model.requestTimeout`
+  （10–300 秒，写进两个 `ModelConfig`）、会话保留条数 `chat.historyLimit`（50–2000）。
+- 会话初始恢复使用固定 2000 条上限，不在 `Application.onCreate` 阶段读加密设置；动态上限在
+  每次追加/保存时裁剪，避免 Robolectric/恢复场景触发未就绪的 `AndroidKeyStore`。
 
 新增界面文案全部走 `app/src/main/res/values/strings.xml`，英文翻译在
 `values-en/strings.xml`；新增文案时必须同时补两边，避免中文写死在 Compose 代码里。

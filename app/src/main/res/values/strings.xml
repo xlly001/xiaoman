@@ -34,6 +34,7 @@
     <string name="approval_resolved_allowed">已允许：%1$s</string>
     <string name="approval_resolved_task">本次任务都允许：%1$s</string>
     <string name="approval_resolved_denied">已拒绝：%1$s</string>
+    <string name="status_approval_pending">等待确认：%1$s</string>
 
     <!-- Skills -->
     <string name="skills_title">技能</string>
@@ -158,6 +159,12 @@
     <string name="quick_default_water_prompt">10 分钟后提醒我喝水。</string>
     <string name="quick_default_preference_title">记住我的偏好</string>
     <string name="quick_default_preference_prompt">记住我买东西喜欢简单实用。</string>
+    <string name="quick_default_package_title">查快递</string>
+    <string name="quick_default_package_prompt">帮我查一下最近一票快递到哪了。</string>
+    <string name="quick_default_summary_title">总结今天</string>
+    <string name="quick_default_summary_prompt">用三句话总结我今天在手机上看到的重要消息。</string>
+    <string name="quick_default_translate_title">翻译一句话</string>
+    <string name="quick_default_translate_prompt">把我接下来发的一句话翻译成英文。</string>
     <string name="voice_unavailable">这台设备没有可用的语音识别服务。</string>
     <string name="voice_permission_denied">没有录音权限，无法使用语音输入。</string>
     <string name="voice_no_match">没有听清，再说一次试试。</string>
@@ -269,12 +276,22 @@
     <string name="settings_theme_system">跟随系统</string>
     <string name="settings_theme_light">浅色</string>
     <string name="settings_theme_dark">深色</string>
+    <string name="settings_language">语言</string>
+    <string name="settings_language_hint">切换后立即生效；跟随系统时使用手机的语言设置。</string>
+    <string name="settings_language_system">跟随系统</string>
+    <string name="settings_language_zh">简体中文</string>
+    <string name="settings_language_en">English</string>
     <string name="settings_voice">语音</string>
     <string name="settings_voice_auto_send">识别后自动发送</string>
     <string name="settings_voice_auto_send_hint">关闭时只把识别结果填入输入框，发送前还能修改。</string>
+    <string name="settings_notifications">通知</string>
+    <string name="settings_notifications_enabled">任务与确认通知</string>
+    <string name="settings_notifications_hint">关闭后不再弹出确认和提醒；系统要求的前台服务通知仍保留。</string>
     <string name="settings_advanced">高级与数据</string>
     <string name="settings_request_timeout">请求超时（秒）</string>
     <string name="settings_request_timeout_hint">10–300 秒；网络慢或操作模型思考久时可调大。</string>
+    <string name="settings_history_limit">会话保留条数</string>
+    <string name="settings_history_limit_hint">50–2000 条；超出后丢弃最早记录。</string>
     <string name="settings_open_accessibility">打开无障碍设置</string>
     <string name="settings_clear_chat">清空会话</string>
     <string name="settings_clear_traces">清空轨迹</string>

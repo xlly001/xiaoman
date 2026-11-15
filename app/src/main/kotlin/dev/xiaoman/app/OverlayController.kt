@@ -22,6 +22,8 @@ class OverlayController(
     private val device: AccessibilityDevice,
     private val services: StateFlow<XiaomanAccessibilityService?> = XiaomanAccessibilityService.instance,
     private val uiVisible: StateFlow<Boolean> = MutableStateFlow(false),
+    /** Shown while a task is busy but has no step text yet; follows the app language. */
+    private val fallbackTitle: String = "小满",
 ) {
     private var overlay: StatusOverlay? = null
     private var owner: XiaomanAccessibilityService? = null
@@ -44,7 +46,7 @@ class OverlayController(
                     }
                     owner = service
                 }
-                overlay?.update(status ?: "小满")
+                overlay?.update(status ?: fallbackTitle)
             }
     }
 
