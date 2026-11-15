@@ -100,6 +100,7 @@ wash, white rounded cards and one-piece bottom dock of the reference app:
 
 The roadmap toward a SuperAgent (task queue, checkpoints, layered memory, skill ecosystem and
 multi-agent execution) is in [docs/superagent-plan.md](docs/superagent-plan.md) (Chinese).
+New contributors and agents should start with the [handover document](docs/HANDOVER.md) (Chinese).
 
 ### Build and test (Windows)
 

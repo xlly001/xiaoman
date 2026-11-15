@@ -85,7 +85,8 @@ scripts/gradle.sh test :app:assembleDebug            # 之后可以离线构建
 - **国际化**：新增文案全部走资源文件，中文在 `app/src/main/res/values/strings.xml`，英文在 `values-en/strings.xml`；两边各 364 个 key 且保持同步；设置页可直接切换应用语言。
 
 后续演进（任务队列、检查点、分层记忆、技能生态、多智能体）见
-[SuperAgent 功能开发计划](docs/superagent-plan.md)。
+[SuperAgent 功能开发计划](docs/superagent-plan.md)；接手开发请先读
+[交接文档](docs/HANDOVER.md)。
 
 ### 构建与测试（Windows）
 

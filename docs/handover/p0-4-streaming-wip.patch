@@ -1,0 +1,102 @@
+diff --git a/core-api/src/main/kotlin/dev/xiaoman/api/Agent.kt b/core-api/src/main/kotlin/dev/xiaoman/api/Agent.kt
+index 42ba439..8a9f8bc 100644
+--- a/core-api/src/main/kotlin/dev/xiaoman/api/Agent.kt
++++ b/core-api/src/main/kotlin/dev/xiaoman/api/Agent.kt
+@@ -4,9 +4,12 @@ package dev.xiaoman.api
+ sealed class AgentEvent {
+     abstract val taskId: String
+ 
+-    /** Assistant text for the chat. */
++    /** Assistant text for the chat; the final, complete text of one model round. */
+     data class Reply(override val taskId: String, val text: String) : AgentEvent()
+ 
++    /** One incremental assistant text chunk; [Reply] follows with the assembled text. */
++    data class ReplyDelta(override val taskId: String, val text: String) : AgentEvent()
++
+     data class SkillChosen(override val taskId: String, val skillName: String) : AgentEvent()
+ 
+     data class PhoneTaskStarted(override val taskId: String, val goal: String, val skillName: String?) : AgentEvent()
+diff --git a/core-api/src/main/kotlin/dev/xiaoman/api/Llm.kt b/core-api/src/main/kotlin/dev/xiaoman/api/Llm.kt
+index f2ea043..4eabf0e 100644
+--- a/core-api/src/main/kotlin/dev/xiaoman/api/Llm.kt
++++ b/core-api/src/main/kotlin/dev/xiaoman/api/Llm.kt
+@@ -89,4 +89,16 @@ interface LlmClient {
+ 
+     /** @throws LlmException on transport or API errors, after the client's own retries. */
+     suspend fun complete(request: ChatRequest): ChatResponse
++
++    /**
++     * Like [complete], but reports text chunks through [onText] as they arrive. Clients without
++     * streaming fall back to one [complete] call and report no chunks.
++     *
++     * @param shouldStop polled between chunks; returning true cancels the turn.
++     */
++    suspend fun completeStreaming(
++        request: ChatRequest,
++        shouldStop: () -> Boolean = { false },
++        onText: (String) -> Unit,
++    ): ChatResponse = complete(request)
+ }
+diff --git a/core-llm/src/main/kotlin/dev/xiaoman/llm/OpenAiCompatibleClient.kt b/core-llm/src/main/kotlin/dev/xiaoman/llm/OpenAiCompatibleClient.kt
+index 6d3cbd4..27564a3 100644
+--- a/core-llm/src/main/kotlin/dev/xiaoman/llm/OpenAiCompatibleClient.kt
++++ b/core-llm/src/main/kotlin/dev/xiaoman/llm/OpenAiCompatibleClient.kt
+@@ -93,8 +93,57 @@ class OpenAiCompatibleClient(
+         }
+     }
+ 
+-    internal fun buildBody(request: ChatRequest, jsonMode: Boolean): JsonObject = buildJsonObject {
++    /**
++     * Streams one chat round over SSE: text chunks go to [onText], tool-call deltas are assembled
++     * into the returned [ChatResponse]. Falls back to a normal JSON body if the server ignores
++     * `stream` and answers with one object.
++     */
++    override suspend fun completeStreaming(
++        request: ChatRequest,
++        shouldStop: () -> Boolean,
++        onText: (String) -> Unit,
++    ): ChatResponse {
++        var attempt = 0
++        var jsonMode = request.jsonMode && !jsonModeUnsupported
++        while (true) {
++            try {
++                return stream(buildBody(request, jsonMode, stream = true), shouldStop, onText)
++            } catch (e: StreamHttpError) {
++                if (e.code == 400 && jsonMode && e.body.contains("response_format")) {
++                    jsonModeUnsupported = true
++                    jsonMode = false
++                    continue
++                }
++                val providerCode = providerCode(e.body)
++                val retryable = isRetryable(e.code) && providerCode != "SetLimitExceeded"
++                if (retryable && attempt < maxRetries) {
++                    sleep(backoff(attempt++, e.retryAfter))
++                    continue
++                }
++                throw LlmException(
++                    redact("HTTP ${e.code} from $url: ${errorDetail(e.body)}"),
++                    e.code,
++                    retryable,
++                    providerCode = providerCode,
++                )
++            } catch (e: IOException) {
++                if (shouldStop()) throw CancellationException("stopped")
++                if (attempt < maxRetries) {
++                    sleep(backoff(attempt++, null))
++                    continue
++                }
++                throw LlmException(
++                    redact("Request to $url failed: ${e.message ?: e.javaClass.simpleName}"),
++                    retryable = true,
++                    cause = e,
++                )
++            }
++        }
++    }
++
++    internal fun buildBody(request: ChatRequest, jsonMode: Boolean, stream: Boolean = false): JsonObject = buildJsonObject {
+         put("model", config.model)
++        if (stream) put("stream", true)
+         putJsonArray("messages") { request.messages.forEach { add(encodeMessage(it)) } }
+         if (request.tools.isNotEmpty()) {
+             putJsonArray("tools") {
