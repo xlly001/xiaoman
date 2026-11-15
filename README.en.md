@@ -97,6 +97,11 @@ wash, white rounded cards and one-piece bottom dock of the reference app:
 - **Internationalization**: every new UI string lives in resources, with Chinese in
   `app/src/main/res/values/strings.xml` and English in `values-en/strings.xml`; both files currently
   hold 364 matching keys, and the app language can be switched in Settings.
+- **Streaming replies**: chat replies stream over SSE (OpenAI-compatible `/chat/completions` `stream`);
+  text appears incrementally with auto-scroll and can be stopped mid-flight. Tool-call fragments are
+  accumulated per index into complete calls. The draft bubble updates in memory only and is not written to
+  disk; when the final reply arrives it replaces the bubble under the same id and is persisted, so exactly
+  one reply bubble remains.
 
 The roadmap toward a SuperAgent (task queue, checkpoints, layered memory, skill ecosystem and
 multi-agent execution) is in [docs/superagent-plan.md](docs/superagent-plan.md) (Chinese).

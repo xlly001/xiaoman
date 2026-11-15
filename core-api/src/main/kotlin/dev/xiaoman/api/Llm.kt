@@ -89,4 +89,16 @@ interface LlmClient {
 
     /** @throws LlmException on transport or API errors, after the client's own retries. */
     suspend fun complete(request: ChatRequest): ChatResponse
+
+    /**
+     * Like [complete], but reports text chunks through [onText] as they arrive. Clients without
+     * streaming fall back to one [complete] call and report no chunks.
+     *
+     * @param shouldStop polled between chunks; returning true cancels the turn.
+     */
+    suspend fun completeStreaming(
+        request: ChatRequest,
+        shouldStop: () -> Boolean = { false },
+        onText: (String) -> Unit,
+    ): ChatResponse = complete(request)
 }

@@ -4,8 +4,11 @@ package dev.xiaoman.api
 sealed class AgentEvent {
     abstract val taskId: String
 
-    /** Assistant text for the chat. */
+    /** Assistant text for the chat; the final, complete text of one model round. */
     data class Reply(override val taskId: String, val text: String) : AgentEvent()
+
+    /** One incremental assistant text chunk; [Reply] follows with the assembled text. */
+    data class ReplyDelta(override val taskId: String, val text: String) : AgentEvent()
 
     data class SkillChosen(override val taskId: String, val skillName: String) : AgentEvent()
 

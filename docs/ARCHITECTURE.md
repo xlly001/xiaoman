@@ -62,6 +62,16 @@ app ──► core-agent / core-llm / core-memory / core-skills / core-sentinel 
                └─ phone_task(goal, skill?) ──► 操作循环（见下）──► 结果摘要返回给聊天模型
 ```
 
+## 流式回复
+
+聊天模型走 `LlmClient.completeStreaming`：OkHttp 读取 SSE，逐行解析 `data:` 片段与 `[DONE]`，把增量文本经 `onText(chunk)` 推出，工具调用增量按 `index` 累积成 `ToolCall`，`usage` 照常解析；响应不是 SSE 时把整段 JSON 交给 `parseResponse()` 回退。
+
+- **事件**：`XiaomanAgent.handle` 每收到一个增量就 `emit(AgentEvent.ReplyDelta(turnId, chunk))`，结束时再 `emit(AgentEvent.Reply(turnId, fullText))`。
+- **草稿气泡**：`AgentSession` 收到 `ReplyDelta` 时按 turnId 维护一个 Assistant item，**只更新内存、不写盘**；收到 `Reply` 用同一 id 替换为完整文本并持久化，全程仅一条 `Assistant`。任务子对话同样用 `TaskThreadStore.upsertAssistant(threadId, itemId, text, persist)`（`persist=false` 仅改内存，`persist=true` 写盘）。
+- **可取消**：`shouldStop()` 为真时 `completeStreaming` 抛 `CancellationException`；`stream` 内用 `coroutineContext[Job]?.invokeOnCompletion { call.cancel() }` 中断阻塞读。`stream` 返回 `StreamResult.Stopped` 哨兵、由 `completeStreaming` 在 `withContext` 之外转成取消异常（在 `withContext(Dispatchers.IO)` 内直接抛取消异常在 `runTest` 虚拟时间下不可靠）。
+- **轨迹**：`ReplyDelta` 不写轨迹（`TraceFormat` 丢弃），避免轨迹体积爆炸。
+- **UI**：`ChatScreen` 在末尾气泡文本增长时跟随滚动。
+
 ## 操作循环
 
 ```

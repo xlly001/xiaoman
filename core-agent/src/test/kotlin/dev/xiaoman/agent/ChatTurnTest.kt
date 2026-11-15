@@ -1,12 +1,15 @@
 package dev.xiaoman.agent
 
 import dev.xiaoman.api.AgentEvent
+import dev.xiaoman.api.AgentListener
 import dev.xiaoman.api.ChatRole
 import dev.xiaoman.api.Note
 import dev.xiaoman.api.Observation
 import dev.xiaoman.api.ToolCall
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.test.runTest
 import kotlin.test.Test
+import kotlin.test.assertFailsWith
 import kotlin.test.assertEquals
 import kotlin.test.assertNotNull
 import kotlin.test.assertTrue
@@ -130,6 +133,41 @@ class ChatTurnTest {
         h.agent.handle("你好", h.events, h.stop)
         val failed = h.events.of<AgentEvent.Failed>().single()
         assertTrue(failed.message.startsWith(Prompts.LLM_FAILED))
+        assertTrue(h.events.of<AgentEvent.Reply>().isEmpty())
+    }
+
+    @Test
+    fun streamingEmitsDeltasThenOneFinalReply() = runTest {
+        val h = Harness()
+        h.chat.streamReplies = true
+        h.chat.reply("你好，世界")
+        h.agent.handle("hi", h.events, h.stop)
+        val deltas = h.events.of<AgentEvent.ReplyDelta>().map { it.text }
+        assertEquals("你好，世界", deltas.joinToString(""))
+        val replies = h.events.of<AgentEvent.Reply>()
+        assertEquals(1, replies.size)
+        assertEquals("你好，世界", replies.single().text)
+    }
+
+    @Test
+    fun streamingStopsWhenAsked() = runTest {
+        val h = Harness()
+        h.chat.streamReplies = true
+        h.chat.reply("你好，世界")
+        var seen = 0
+        val deltas = mutableListOf<String>()
+        val events = object : AgentListener {
+            override fun onEvent(event: AgentEvent) {
+                if (event is AgentEvent.ReplyDelta) {
+                    deltas += event.text
+                    if (++seen >= 1) h.stop.value = true
+                }
+                h.events.onEvent(event)
+            }
+        }
+        assertFailsWith<CancellationException> { h.agent.handle("hi", events, h.stop) }
+        assertTrue(deltas.isNotEmpty())
+        // No final Reply once stopped mid-stream.
         assertTrue(h.events.of<AgentEvent.Reply>().isEmpty())
     }
 }

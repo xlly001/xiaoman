@@ -185,6 +185,7 @@ class Runner(
     private fun printEvent(event: AgentEvent) {
         when (event) {
             is AgentEvent.Reply -> out.println("小满：${event.text}")
+            is AgentEvent.ReplyDelta -> out.print(event.text)
             is AgentEvent.SkillChosen -> out.println("使用技能：${event.skillName}")
             is AgentEvent.PhoneTaskStarted -> out.println("开始手机任务：${event.goal}" + (event.skillName?.let { "（技能 $it）" } ?: ""))
             is AgentEvent.StepPlanned -> out.println("  [${event.stepIndex + 1}] ${ScreenText.describe(event.action)}")

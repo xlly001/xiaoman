@@ -247,8 +247,8 @@ interface Verifier {
 4. **统一工具注册表**
    - 内置工具、MCP、技能、手机操作统一描述：风险、作用域、是否可后台、成本。
    - 现有 `PolicySentinel` 改为读取工具描述做决策。
-5. **流式回复**
-   - `core-llm` 增加 SSE 流式接口；聊天页增量显示；可中途停止。
+5. **流式回复**（已完成）
+   - `core-llm` 增加 SSE 流式接口（`completeStreaming` + SSE 解析）；聊天页增量显示并跟随滚动；可中途停止（抛 `CancellationException`）。详见 `docs/HANDOVER.md` 第 5 节。
 6. **评测底座**
    - 新模块 `eval/`：场景 DSL、假 LLM、假工具、断言事件序列。
    - 先覆盖：聊天、记忆读写、技能保存确认、任务失败路径、高危动作拦截。
@@ -483,11 +483,12 @@ interface Verifier {
 - `PolicySentinel` 接入工具描述；保留现有规则作为兜底。
 - 测试：高危工具必须 Ask、未知工具默认 Ask、只读工具可 Allow。
 
-### P0-4 流式回复
+### P0-4 流式回复（已完成）
 
-- `core-llm` 增加 `completeStream`，解析 SSE；错误码与现有逻辑一致。
-- 聊天页增量渲染，停止按钮可中断。
-- 测试：正常流、断流、429、工具调用轮次。
+- `core-llm`：`LlmClient.completeStreaming(request, shouldStop, onText)` + `OpenAiCompatibleClient.stream` 解析 SSE（文本分块、`[DONE]`、`delta.tool_calls` 按 index 拼接、`usage`、非 SSE 时整段 JSON 回退）；`shouldStop()` 为真时结束并转 `CancellationException`。
+- `core-agent`：`XiaomanAgent.handle` 聊天轮走 `completeStreaming` 并 `emit(ReplyDelta)`，操作模型仍用 `complete()`。
+- `app`：草稿气泡（delta 只更新内存、不写盘；`Reply` 用同一 id 替换为完整文本并持久化），任务线程 `TaskThreadStore.upsertAssistant(...)`；`ChatScreen` 跟随滚动；轨迹不记录 delta。
+- 测试（`core-llm` 32 / `core-agent` 77 / `app` 62 全绿）：正常流、工具调用轮次、非 SSE 回退、429、`shouldStop` 停止、草稿聚合成单条 `Assistant`。
 
 ### P0-5 评测底座
 

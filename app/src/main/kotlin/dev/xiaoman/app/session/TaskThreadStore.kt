@@ -100,6 +100,25 @@ class TaskThreadStore(
     }
 
     /**
+     * Creates or updates the assistant bubble for a streaming reply in [threadId]. With [persist]
+     * false the change stays in memory only so a token-by-token reply never rewrites `tasks.json`.
+     */
+    @Synchronized
+    fun upsertAssistant(threadId: String, itemId: Long, text: String, persist: Boolean) {
+        val current = _threads.value
+        val index = current.indexOfFirst { it.id == threadId }
+        if (index < 0) return
+        val thread = current[index]
+        val items = if (thread.items.any { it is ChatItem.Assistant && it.id == itemId }) {
+            thread.items.map { if (it is ChatItem.Assistant && it.id == itemId) it.copy(text = text) else it }
+        } else {
+            (thread.items + ChatItem.Assistant(itemId, text)).takeLast(maxItemsPerThread)
+        }
+        val updated = current.toMutableList().also { it[index] = thread.copy(items = items) }
+        if (persist) commit(updated) else _threads.value = updated
+    }
+
+    /**
      * Records one step for crash recovery. [steps] is the number of device actions already done;
      * [line] is appended to a short history the operator sees after a restart.
      */

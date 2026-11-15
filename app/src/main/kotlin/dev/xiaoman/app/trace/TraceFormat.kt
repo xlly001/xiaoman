@@ -24,6 +24,7 @@ object TraceFormat {
 
     fun kind(event: AgentEvent): String = when (event) {
         is AgentEvent.Reply -> "Reply"
+        is AgentEvent.ReplyDelta -> "ReplyDelta"
         is AgentEvent.SkillChosen -> "SkillChosen"
         is AgentEvent.PhoneTaskStarted -> "PhoneTaskStarted"
         is AgentEvent.StepPlanned -> "StepPlanned"
@@ -60,6 +61,8 @@ object TraceFormat {
         var decision: String? = null
         when (event) {
             is AgentEvent.Reply -> text = event.text
+            // Streamed chunks are not written to the trace; only the final Reply is.
+            is AgentEvent.ReplyDelta -> Unit
             is AgentEvent.SkillChosen -> text = event.skillName
             is AgentEvent.PhoneTaskStarted -> text = event.goal
             is AgentEvent.StepPlanned -> {

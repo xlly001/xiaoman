@@ -81,9 +81,10 @@ class XiaomanAgent(
             var finalText: String? = null
             for (round in 0..MAX_TOOL_ROUNDS) {
                 val offerTools = round < MAX_TOOL_ROUNDS
-                val response = chat.complete(
+                val response = chat.completeStreaming(
                     ChatRequest(listOf(system) + past + turn, tools = if (offerTools) toolSpecs else emptyList()),
-                )
+                    { stop.stopped },
+                ) { delta -> emit(AgentEvent.ReplyDelta(turnId, delta)) }
                 val text = response.text.trim()
                 if (response.toolCalls.isEmpty() || !offerTools) {
                     finalText = text.ifEmpty { if (response.toolCalls.isNotEmpty()) Prompts.TOOL_ROUNDS_EXCEEDED else "" }

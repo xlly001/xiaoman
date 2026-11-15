@@ -117,6 +117,8 @@ class AgentSession(
     private val taskEntryIds = java.util.concurrent.ConcurrentHashMap<String, Long>()
 
     /** Checkpoint for one step: completed steps and a compact, UI-language-independent line. */
+    private val assistantDrafts = java.util.concurrent.ConcurrentHashMap<String, Long>()
+
     private fun checkpointOf(event: AgentEvent): Pair<Int, String>? = when (event) {
         is AgentEvent.StepExecuted -> {
             val outcome = if (event.result.ok) "成功" else "失败：${event.result.message ?: "未知原因"}"
@@ -177,6 +179,15 @@ class AgentSession(
         }
         if (event is AgentEvent.PhoneTaskFinished) onTaskEnd(event.taskId)
         stepText.status(event)?.let { _status.value = it }
+
+        // Streaming text: deltas update an in-memory draft bubble; the final Reply finalizes and
+        // persists it. Skipping chatItem below keeps a streamed reply as a single bubble.
+        if (event is AgentEvent.ReplyDelta || event is AgentEvent.Reply) {
+            handleReplyDraft(event)
+            _events.tryEmit(event)
+            return@AgentListener
+        }
+
         stepText.chatItem(event, ids.incrementAndGet())?.let { item ->
             when (event) {
                 // SkillChosen precedes PhoneTaskStarted; the thread is created by the latter.
@@ -222,6 +233,35 @@ class AgentSession(
             }
         }
         _events.tryEmit(event)
+    }
+
+    /** Routes [AgentEvent.ReplyDelta] / [AgentEvent.Reply] to the in-memory streaming draft. */
+    private fun handleReplyDraft(event: AgentEvent) = when (event) {
+        is AgentEvent.ReplyDelta -> appendOrUpdateDraft(event.taskId, event.text)
+        is AgentEvent.Reply -> finalizeOrCreateDraft(event.taskId, event.text)
+        else -> Unit
+    }
+
+    /** Appends [chunk] to the draft assistant bubble for [turnId]; in-memory only, no disk write. */
+    private fun appendOrUpdateDraft(turnId: String, chunk: String) {
+        val id = assistantDrafts[turnId]
+        if (id != null) {
+            _items.update { list -> list.map { if (it is ChatItem.Assistant && it.id == id) it.copy(text = it.text + chunk) else it } }
+        } else {
+            val newId = ids.incrementAndGet()
+            assistantDrafts[turnId] = newId
+            _items.update { (it + ChatItem.Assistant(newId, chunk)).takeLast(historyLimit().coerceIn(20, 2_000)) }
+        }
+    }
+
+    /** Finalizes the draft bubble with the full text (persisted), or creates one when none streamed. */
+    private fun finalizeOrCreateDraft(turnId: String, text: String) {
+        val id = assistantDrafts.remove(turnId)
+        if (id != null) {
+            update(id) { current -> if (current is ChatItem.Assistant) current.copy(text = text) else current }
+        } else {
+            add(ChatItem.Assistant(ids.incrementAndGet(), text))
+        }
     }
 
     sealed class Submit {
@@ -282,10 +322,26 @@ class AgentSession(
         }
 
         val turnId = "thread-${ids.incrementAndGet()}"
+        val threadDrafts = java.util.concurrent.ConcurrentHashMap<String, Long>()
+        val threadDraftText = java.util.concurrent.ConcurrentHashMap<String, StringBuilder>()
         val threadListener = AgentListener { event ->
             if (event.taskId == turnId) {
                 when (event) {
-                    is AgentEvent.Reply,
+                    // Streaming reply in the sub-conversation: update an in-memory bubble, persist only the final text.
+                    is AgentEvent.ReplyDelta -> {
+                        val id = threadDrafts.getOrPut(turnId) { ids.incrementAndGet() }
+                        val text = threadDraftText.getOrPut(turnId) { StringBuilder() }.append(event.text).toString()
+                        taskThreads?.upsertAssistant(taskId, id, text, persist = false)
+                    }
+                    is AgentEvent.Reply -> {
+                        val id = threadDrafts.remove(turnId)
+                        val text = threadDraftText.remove(turnId)?.toString() ?: event.text
+                        if (id != null) {
+                            taskThreads?.upsertAssistant(taskId, id, text, persist = true)
+                        } else {
+                            stepText.chatItem(event, ids.incrementAndGet())?.let { taskThreads?.append(taskId, it) }
+                        }
+                    }
                     is AgentEvent.ToolCalled,
                     is AgentEvent.MemoryUpdated,
                     is AgentEvent.Failed,

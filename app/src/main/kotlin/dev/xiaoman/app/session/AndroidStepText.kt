@@ -45,6 +45,7 @@ class AndroidStepText(private val context: Context) : StepTextFormatter {
 
     override fun chatItem(event: AgentEvent, id: Long): ChatItem? = when (event) {
         is AgentEvent.Reply -> ChatItem.Assistant(id, event.text)
+        is AgentEvent.ReplyDelta -> null
         is AgentEvent.SkillChosen -> ChatItem.Progress(id, text(R.string.chat_skill_chosen, event.skillName))
         is AgentEvent.PhoneTaskStarted -> ChatItem.Progress(id, text(R.string.chat_phone_start, event.goal))
         is AgentEvent.StepPlanned -> null

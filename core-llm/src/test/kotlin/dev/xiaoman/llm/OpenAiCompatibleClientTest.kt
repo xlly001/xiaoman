@@ -342,4 +342,68 @@ class OpenAiCompatibleClientTest {
         val e = assertFailsWith<LlmException> { client().complete(ChatRequest(listOf(ChatMessage.user("x")))) }
         assertEquals(200, e.statusCode)
     }
+
+    private fun sse(vararg lines: String) = MockResponse().setResponseCode(200).setBody(lines.joinToString("\n") + "\n")
+
+    @Test
+    fun `streams text chunks and assembles the final reply`() = runTest {
+        server.enqueue(sse(
+            """data: {"choices":[{"delta":{"content":"你"},"finish_reason":null}]}""",
+            """data: {"choices":[{"delta":{"content":"好"},"finish_reason":null}]}""",
+            """data: {"choices":[{"delta":{},"finish_reason":"stop"}]}""",
+            "data: [DONE]",
+        ))
+        val collected = mutableListOf<String>()
+        val response = client().completeStreaming(ChatRequest(listOf(ChatMessage.user("hi"))), { false }) { collected += it }
+        assertEquals("你好", response.text)
+        assertEquals("stop", response.finishReason)
+        assertEquals(listOf("你", "好"), collected)
+    }
+
+    @Test
+    fun `assembles streamed tool calls by index`() = runTest {
+        server.enqueue(sse(
+            """data: {"choices":[{"delta":{"tool_calls":[{"index":0,"id":"call_1","function":{"name":"weather","arguments":""}}]},"finish_reason":null}]}""",
+            """data: {"choices":[{"delta":{"tool_calls":[{"index":0,"function":{"arguments":"{\"city\":\"北京\"}"}}]},"finish_reason":"tool_calls"}]}""",
+            "data: [DONE]",
+        ))
+        val response = client().completeStreaming(ChatRequest(listOf(ChatMessage.user("hi"))), { false }) {}
+        assertEquals(listOf(ToolCall("call_1", "weather", """{"city":"北京"}""")), response.toolCalls)
+        assertEquals("tool_calls", response.finishReason)
+    }
+
+    @Test
+    fun `falls back to plain JSON when the server ignores stream`() = runTest {
+        server.enqueue(ok(simpleReply))
+        val response = client().completeStreaming(ChatRequest(listOf(ChatMessage.user("hi"))), { false }) {}
+        assertEquals("hi", response.text)
+    }
+
+    @Test
+    fun `reports a stream error status as a retryable exception`() = runTest {
+        server.enqueue(MockResponse().setResponseCode(429).setBody("""{"error":{"message":"rate limited"}}"""))
+        val e = assertFailsWith<LlmException> {
+            client(maxRetries = 0).completeStreaming(ChatRequest(listOf(ChatMessage.user("x"))), { false }) {}
+        }
+        assertEquals(429, e.statusCode)
+        assertTrue(e.retryable)
+    }
+
+    @Test
+    fun `streaming stops when shouldStop is set`() = runTest {
+        server.enqueue(sse(
+            """data: {"choices":[{"delta":{"content":"你"}}]}""",
+            """data: {"choices":[{"delta":{"content":"好"}}]}""",
+            "data: [DONE]",
+        ))
+        var stop = false
+        val collected = mutableListOf<String>()
+        assertFailsWith<CancellationException> {
+            client().completeStreaming(ChatRequest(listOf(ChatMessage.user("x"))), { stop }) { chunk ->
+                collected += chunk
+                if (collected.size == 1) stop = true
+            }
+        }
+        assertEquals(listOf("你"), collected)
+    }
 }

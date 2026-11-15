@@ -72,6 +72,7 @@ import dev.xiaoman.app.AppGraph
 import dev.xiaoman.app.R
 import dev.xiaoman.app.quick.QuickCommand
 import dev.xiaoman.app.session.AgentSession
+import dev.xiaoman.app.session.ChatItem
 import dev.xiaoman.hands.XiaomanAccessibilityService
 
 @Composable
@@ -103,7 +104,9 @@ fun ChatScreen(
 
     val rows = remember(items) { chatTimeline(items) }
     val listState = rememberLazyListState()
-    LaunchedEffect(rows.size) {
+    // Re-scroll as the streaming reply grows (the last bubble's text changes without adding a row).
+    val lastReplyLength = remember(items) { (items.lastOrNull() as? ChatItem.Assistant)?.text?.length ?: 0 }
+    LaunchedEffect(rows.size, lastReplyLength) {
         if (rows.isNotEmpty()) listState.animateScrollToItem(rows.lastIndex)
     }
     LaunchedEffect(approval?.id) {

@@ -34,6 +34,7 @@ import dev.xiaoman.api.ToolCall
 import dev.xiaoman.api.UiNode
 import dev.xiaoman.api.UserChannel
 import dev.xiaoman.api.UserSkillStore
+import kotlinx.coroutines.CancellationException
 import java.io.File
 
 /** LLM returning scripted responses in order; [fallback] answers once the script is used up. */
@@ -41,6 +42,9 @@ class ScriptedLlm(role: ModelRole = ModelRole.CHAT, var fallback: ((ChatRequest)
     override val config = ModelConfig(role, "http://fake", "fake-model", "secret")
     val requests = mutableListOf<ChatRequest>()
     private val script = ArrayDeque<(ChatRequest) -> ChatResponse>()
+
+    /** When set, [completeStreaming] pushes the reply text in two-character chunks through [onText]. */
+    var streamReplies: Boolean = false
 
     fun reply(text: String) = apply { script.addLast { ChatResponse(text) } }
     fun tools(vararg calls: ToolCall) = apply { script.addLast { ChatResponse("", calls.toList()) } }
@@ -51,6 +55,19 @@ class ScriptedLlm(role: ModelRole = ModelRole.CHAT, var fallback: ((ChatRequest)
         requests += request
         val next = script.removeFirstOrNull() ?: fallback ?: error("no scripted response left")
         return next(request)
+    }
+
+    override suspend fun completeStreaming(request: ChatRequest, shouldStop: () -> Boolean, onText: (String) -> Unit): ChatResponse {
+        requests += request
+        val next = script.removeFirstOrNull() ?: fallback ?: error("no scripted response left")
+        val response = next(request)
+        if (streamReplies) {
+            for (chunk in response.text.chunked(2)) {
+                if (shouldStop()) throw CancellationException("stopped")
+                onText(chunk)
+            }
+        }
+        return response
     }
 }
 

@@ -80,4 +80,27 @@ class TaskThreadStoreTest {
         assertNull(store.get("missing"))
         assertTrue(store.threads.value.isEmpty())
     }
+
+    @Test fun `upsertAssistant creates, replaces and persists`() {
+        val file = tempFile()
+        val store = TaskThreadStore(file)
+        store.start("t1", "问小满")
+        store.upsertAssistant("t1", 100, "你", persist = true)
+        assertEquals("你", (store.get("t1")!!.items.single() as ChatItem.Assistant).text)
+        store.upsertAssistant("t1", 100, "你好", persist = true)
+        assertEquals("你好", (store.get("t1")!!.items.single() as ChatItem.Assistant).text)
+        val reloaded = TaskThreadStore(file).get("t1")
+        assertEquals("你好", (reloaded!!.items.single() as ChatItem.Assistant).text)
+    }
+
+    @Test fun `upsertAssistant without persist keeps the change in memory only`() {
+        val file = tempFile()
+        val store = TaskThreadStore(file)
+        store.start("t1", "问小满")
+        store.upsertAssistant("t1", 7, "你", persist = false)
+        assertEquals("你", (store.get("t1")!!.items.single() as ChatItem.Assistant).text)
+        // Never written to disk, so a fresh read shows no assistant item.
+        val reloaded = TaskThreadStore(file).get("t1")
+        assertTrue(reloaded!!.items.isEmpty())
+    }
 }

@@ -263,4 +263,37 @@ class AgentSessionTest {
         assertEquals(3, resume.steps)
         assertEquals(2, resume.history.size)
     }
+
+    @Test fun `streaming deltas become one assistant bubble`() = runTest(UnconfinedTestDispatcher()) {
+        val agent = object : Agent {
+            override suspend fun handle(
+                userMessage: String,
+                listener: AgentListener,
+                stop: StopSignal,
+                images: List<ByteArray>,
+                taskId: String?,
+            ) {
+                val id = taskId ?: "t1"
+                listener.onEvent(AgentEvent.ReplyDelta(id, "你"))
+                listener.onEvent(AgentEvent.ReplyDelta(id, "好"))
+                listener.onEvent(AgentEvent.Reply(id, "你好"))
+            }
+
+            override suspend fun runPhoneTask(
+                goal: String,
+                skillName: String?,
+                listener: AgentListener,
+                stop: StopSignal,
+                resume: TaskResume?,
+            ) = error("not used")
+        }
+        val s = session(agent)
+        s.submit("hi")
+        advanceUntilIdle()
+        val assistants = s.items.value.filterIsInstance<ChatItem.Assistant>()
+        assertEquals(1, assistants.size)
+        assertEquals("你好", assistants.single().text)
+        // One user line plus a single assistant bubble; no duplicate per-delta bubbles.
+        assertEquals(2, s.items.value.size)
+    }
 }

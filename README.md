@@ -83,6 +83,7 @@ scripts/gradle.sh test :app:assembleDebug            # 之后可以离线构建
 - **技能管理**：技能页支持搜索、详情、新建和「用一句话修改」；手机上可直接通过 `skill_read` / `skill_save` / `skill_delete` 读写用户技能，保存前必须在聊天里回复「确认」。
 - **记忆管理**：记忆页支持搜索、新建、编辑、删除；编辑后按 Basic Memory 格式重新写入。
 - **国际化**：新增文案全部走资源文件，中文在 `app/src/main/res/values/strings.xml`，英文在 `values-en/strings.xml`；两边各 364 个 key 且保持同步；设置页可直接切换应用语言。
+- **流式回复**：聊天回复走 SSE 流式（OpenAI 兼容 `/chat/completions` 的 `stream`），文字逐段增量显示并自动滚动；过程中可中途停止；带工具调用的流式会按片段累积成完整调用。草稿气泡只在内存里更新、不写盘，最终回复到达时才用同一 id 替换为完整文本并持久化，全程只保留一条回复气泡。
 
 后续演进（任务队列、检查点、分层记忆、技能生态、多智能体）见
 [SuperAgent 功能开发计划](docs/superagent-plan.md)；接手开发请先读

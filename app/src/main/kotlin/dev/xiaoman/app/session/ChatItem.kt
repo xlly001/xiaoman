@@ -92,6 +92,7 @@ object StepText : StepTextFormatter {
     /** The chat row for [event], or null when it only updates the status. */
     override fun chatItem(event: AgentEvent, id: Long): ChatItem? = when (event) {
         is AgentEvent.Reply -> ChatItem.Assistant(id, event.text)
+        is AgentEvent.ReplyDelta -> null
         is AgentEvent.SkillChosen -> ChatItem.Progress(id, "使用技能 ${event.skillName}")
         is AgentEvent.PhoneTaskStarted -> ChatItem.Progress(id, "开始手机任务：${event.goal}")
         is AgentEvent.StepPlanned -> null

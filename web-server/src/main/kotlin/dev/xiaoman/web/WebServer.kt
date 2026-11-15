@@ -247,6 +247,7 @@ class WebServer(
                             agent.handle(body.str("message"), AgentListener { e ->
                                 when (e) {
                                     is AgentEvent.Reply -> emit(event("reply") { put("text", e.text) })
+                                    is AgentEvent.ReplyDelta -> emit(event("reply_delta") { put("text", e.text) })
                                     is AgentEvent.ToolCalled -> emit(event("tool") { put("tool", e.tool); put("ok", e.ok); put("summary", e.summary) })
                                     is AgentEvent.MemoryUpdated -> emit(s.memory.snapshot(e.permalink)?.let(BrowserMemory::saved) ?: BrowserMemory.deleted(e.permalink))
                                     is AgentEvent.Failed -> emit(event("error") { put("message", e.message) })

@@ -124,59 +124,39 @@ cd f:\gowork\xllyxx\xiaoman
 
 ---
 
-## 5. 正在进行的 P0-4：流式回复（未完成，已保存补丁）
+## 5. P0-4 流式回复（已完成）
 
-### 5.1 当前状态
+### 5.1 状态
 
-上一轮刚开始实现流式回复，改了 3 个文件但**没有完成、无法编译**。为了保持 main 可构建，改动已导出为补丁并从工作区撤回：
+流式回复已完整实现并通过测试：
 
-- 补丁：`docs/handover/p0-4-streaming-wip.patch`（4.7 KB）
-- 涉及文件：`core-api/Agent.kt`、`core-api/Llm.kt`、`core-llm/OpenAiCompatibleClient.kt`
-- 应用补丁：`git apply docs/handover/p0-4-streaming-wip.patch`
+- `core-llm`：32 测试 0 失败
+- `core-agent`：77 测试 0 失败
+- `app`：62 测试 0 失败，`:app:lintDebug` 通过
+- `web-server` / `ios-runner`：相关穷举 `when` 分支已补齐，编译通过（`web-server` 有 2 个与本次改动无关的预先存在测试失败，见 §9）
 
-补丁里已经完成：
+### 5.2 实现内容
 
-1. `AgentEvent.ReplyDelta(taskId, text)`：增量文本事件。
-2. `LlmClient.completeStreaming(request, shouldStop, onText)`：默认退回 `complete()`，因此所有现有 fake/测试无需改动。
-3. `OpenAiCompatibleClient.completeStreaming` 的重试与错误骨架（429/5xx/`SetLimitExceeded`/`response_format` 回退）。
-4. `buildBody(..., stream = true)`。
+1. **事件流**：`AgentEvent.ReplyDelta(taskId, text)` 推增量；`AgentEvent.Reply` 仍是最终完整文本。
+2. **接口**：`LlmClient.completeStreaming(request, shouldStop, onText)` 默认退回 `complete()`，所有现有 fake/测试无需改动。
+3. **SSE 解析**（`OpenAiCompatibleClient.stream`）：`call.execute()` 读 `body.source()` 逐行解析 `data:` 行、`[DONE]`、`delta.content` 经 `onText` 推出、`delta.tool_calls` 按 `index` 累积 `id/name/arguments`、`usage` 解析；首行不是 `data:` 时把整段 body 交给 `parseResponse()` 做非 SSE JSON 回退；2xx 之外抛 `StreamHttpError` 交给 `completeStreaming` 重试。
+4. **可取消性**：`completeStreaming` 在 `shouldStop()` 为真时抛 `CancellationException`；`stream` 内用 `coroutineContext[Job]?.invokeOnCompletion { call.cancel() }` 让协程取消能中断阻塞读。注意实现上 `stream` 不直接抛 `CancellationException`（在 `withContext(Dispatchers.IO)` 内抛取消异常在 `runTest` 虚拟时间下不可靠），而是返回 `StreamResult.Stopped` 哨兵，由 `completeStreaming` 在 `withContext` 之外转成 `CancellationException`。
+5. **Agent 接入**：`XiaomanAgent.handle` 的聊天轮改用 `chat.completeStreaming(request, { stop.stopped }) { emit(AgentEvent.ReplyDelta(turnId, it)) }`；操作模型（屏幕 JSON）继续用 `complete()`。
+6. **草稿气泡（草稿不写盘）**：
+   - 主对话：收到 `ReplyDelta` 按 turnId 记录/更新一个 `Assistant` item id，**只更新内存、不写盘**；`Reply` 到达时用同一 id 替换为完整文本并持久化，全程仅一条 `Assistant`。
+   - 任务线程：`TaskThreadStore.upsertAssistant(threadId, itemId, text, persist)`；delta 时 `persist=false`，`Reply` 时 `persist=true`。
+7. **穷举 when 已补齐**：`StepText`/`AndroidStepText.chatItem` 的 `ReplyDelta -> null`；`TraceFormat.kind/line`、`web-server` 的 `reply_delta`、`ios-runner` 的 `event.text`；轨迹不记录 delta。
+8. **UI**：`ChatScreen` 在 `ReplyDelta` 导致最后一格文本增长时跟随滚动（监听 `rows.size` 与末尾 `Assistant` 文本长度）。
 
-补丁里**缺失**：
+### 5.3 测试
 
-- `stream()` 本身与 SSE 解析（`data:` 行、`[DONE]`、`delta.content`、`delta.tool_calls` 按 `index` 拼接、`usage`、非 SSE 返回时的 JSON 回退）。
-- `StreamHttpError` 类。
-- 缺少的 import：`CancellationException`、`Job/invokeOnCompletion`、`BufferedSource`。
-- 新增事件导致的穷举 `when` 编译错误尚未处理。
+- `OpenAiCompatibleClientTest`：MockWebServer 返回 SSE（文本分块 / 工具调用按 index 拼接 / 非 SSE JSON 回退 / 429 / `shouldStop` 停止）。
+- `core-agent` `ChatTurnTest`：`streamingEmitsDeltasThenOneFinalReply`、`streamingStopsWhenAsked`（`ScriptedLlm` 实现 `completeStreaming`，按 2 字符切块推流，`shouldStop` 时抛取消）。
+- `app` `AgentSessionTest` / `TaskThreadStoreTest`：delta 最终只产生一个 `Assistant` 气泡（2 条 item）；`upsertAssistant` 创建/替换/持久化与仅内存两种模式。
 
-### 5.2 继续实现的最短路径
+### 5.4 补丁
 
-1. **core-llm**
-   - 补 `stream(...)`：`call.execute()` 读 `body.source()`，逐行解析；`shouldStop()` 为真时抛 `CancellationException`。
-   - 工具调用增量按 `index` 累积 `id/name/arguments`，最后组装 `ToolCall`。
-   - 若响应不是 SSE（首行不是 `data:`），把整段 body 交给现有 `parseResponse()`。
-   - 用 `Job.invokeOnCompletion { call.cancel() }` 让协程取消能中断阻塞读。
-2. **core-agent**
-   - `XiaomanAgent.handle` 的聊天轮改为 `chat.completeStreaming(request, { stop.stopped }) { emit(AgentEvent.ReplyDelta(turnId, it)) }`。
-   - 操作模型（屏幕 JSON）继续用 `complete()`，不要流式。
-3. **app/session**
-   - 主对话：收到 `ReplyDelta` 时按 turnId 记录一个 `Assistant` item id，**只更新内存、不写盘**；最终 `Reply` 到达时用同一 id 替换为完整文本并持久化。
-   - 任务线程：`submitToThread` 的 threadListener 同样处理；给 `TaskThreadStore` 加 `upsertAssistant(threadId, itemId, text, persist)`，delta 时 `persist=false`。
-   - 必须避免每个 token 写一次 `tasks.json`。
-4. **穷举 when**
-   - `AndroidStepText`、`StepText` 的 `chatItem` 加 `ReplyDelta -> null`。
-   - `TraceFormat.kind/line` 加分支；`TraceWriter` 丢弃 delta，避免轨迹爆炸。
-   - 检查 `ios-runner` 与 `app/trace` 下所有 `when (event)`。
-5. **UI**
-   - 气泡文本增长时自动滚动（当前只监听 `rows.size`）。
-   - 可选：流式中显示一个轻量光标或「正在输入」。
-6. **测试**
-   - `OpenAiCompatibleClientTest`：MockWebServer 返回 SSE（文本 + 工具调用 + `[DONE]`）；断流；429；非 SSE JSON 回退。
-   - `XiaomanAgent`：fake `LlmClient` 覆盖 `completeStreaming`，断言 `ReplyDelta` 序列与最终 `Reply`。
-   - `AgentSessionTest`：delta 后只产生一个 Assistant 气泡，最终文本正确。
-7. **文档**
-   - Spec 新增 FR-17、`tasks.md`、`checklist.md`、README、ARCHITECTURE、计划里的 P0-4 状态。
-8. **端到端验证（重要）**
-   - 可在宿主机起一个假的 OpenAI 兼容 SSE 服务，模拟器通过 `http://10.0.2.2:<port>/v1` 访问，debug 清单允许明文 HTTP。这样即使没有真实 Key 也能验收“首 token 延迟、增量渲染、停止”。
+原脚手架补丁 `docs/handover/p0-4-streaming-wip.patch` 的内容已全部实现并演进为正式代码（事件定义、重试骨架、SSE 解析、草稿气泡、穷举分支、测试、文档）。该补丁已无使用价值，**可删除**（保留也无害，但不要再次 `git apply`，会冲突）。
 
 ---
 
@@ -184,14 +164,14 @@ cd f:\gowork\xllyxx\xiaoman
 
 按 [superagent-plan.md](superagent-plan.md)：
 
-1. **P0-4 流式回复**（上面的补丁与清单）。
+1. **P0-4 流式回复**（已完成，见第 5 节）。
 2. **P0-3 统一工具注册表**：`ToolDescriptor`（名称/来源/风险/作用域/是否可后台/成本），Sentinel 读取描述；MCP 已有 `ConfirmPolicy`，需要与内置工具、技能统一。
 3. **P0-5 评测底座**：新增 `eval/` JVM 模块，假 LLM + 假设备 + 场景 DSL，先覆盖聊天、记忆、技能确认、任务失败、高危拦截。
 4. 阶段 1：分层记忆、混合检索、用户画像、每日简报。
 5. 阶段 2：技能 v2、测试运行器、MCP 发现与权限、流程引擎 v2。
 6. 阶段 3：规划器、子代理、校验器、预算与长任务。
 
-**建议顺序**：先 P0-4（用户感知最强，且可用假服务验收），再 P0-5（为后续所有改动提供回归网），最后 P0-3。
+**建议顺序**：P0-4 已完成；接下来先做 P0-5（为后续所有改动提供回归网），最后 P0-3。
 
 ---
 
@@ -234,9 +214,9 @@ cd f:\gowork\xllyxx\xiaoman
 - 任务详情内继续对话；主对话不显示会话列表。
 - 搜索结果可直达任务详情；日记按天分页。
 
-**仍需真实 Key / 真机**
+**仍需真实 Key / 真机验收**
 
-- 真实模型流式回复（P0-4 完成后）。
+- 真实模型流式回复端到端验收（P0-4 代码已完成，需用真实 Key 在模拟器跑一遍「首 token 延迟 / 增量渲染 / 停止」；也可用宿主假 SSE 服务经 `http://10.0.2.2:<port>/v1` 验收，debug 清单已允许明文 HTTP）。
 - 真实任务执行、任务卡状态刷新、断点续跑。
 - 附件图片发给视觉模型。
 - 真实厂商 `/models`。
@@ -249,7 +229,7 @@ cd f:\gowork\xllyxx\xiaoman
 1. 读 `docs/superagent-plan.md` 阶段 0 + `.trae/specs/xiaoman-ui/spec.md` 的 FR-15/FR-16。
 2. 跑一遍测试与 `assembleDebug`，确认本地环境。
 3. 装 APK 到模拟器，走一遍：聊天 → 任务页新建任务 → 队列暂停/继续 → 任务详情。
-4. 看 `docs/handover/p0-4-streaming-wip.patch`，决定是否继续 P0-4。
+4. P0-4 已完成（见第 5 节）；`docs/handover/p0-4-streaming-wip.patch` 是遗留脚手架，可删，勿再 `git apply`。
 5. 开工前先在 `tasks.md` 认领任务，完成后按约定更新三份 Spec 与 README。
 
 有问题先看 [ARCHITECTURE.md](ARCHITECTURE.md) 与 [ui-interaction.md](ui-interaction.md)，它们记录了为什么这样设计，而不只是做了什么。
