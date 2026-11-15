@@ -128,6 +128,17 @@ class AgentSessionTest {
         assertTrue(queue.tasks.value.isEmpty())
     }
 
+    @Test fun `resume keeps queued tasks while no model is configured`() = runTest(UnconfinedTestDispatcher()) {
+        val queue = TaskQueueStore(queueFile())
+        queue.enqueue("q1", "查快递")
+        val s = queuedSession(null, queue, RunIds())
+
+        s.resumeQueue()
+        advanceUntilIdle()
+
+        assertEquals(QueueState.QUEUED, queue.get("q1")?.state)
+    }
+
     @Test fun `queued tasks run one after another`() = runTest(UnconfinedTestDispatcher()) {
         val queue = TaskQueueStore(queueFile())
         val runIds = RunIds()

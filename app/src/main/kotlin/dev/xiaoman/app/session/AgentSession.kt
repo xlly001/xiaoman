@@ -338,6 +338,8 @@ class AgentSession(
     /** Picks up tasks that were still queued when the app last closed. */
     fun resumeQueue() {
         if (queue?.tasks?.value.isNullOrEmpty()) return
+        // Without models every task would fail at once; keep them queued until a model is configured.
+        if (agent() == null) return
         drainQueue()
     }
 
