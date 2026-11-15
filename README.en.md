@@ -87,6 +87,9 @@ wash, white rounded cards and one-piece bottom dock of the reference app:
   `app/src/main/res/values/strings.xml` and English in `values-en/strings.xml`; both files currently
   hold 342 matching keys, and the app language can be switched in Settings.
 
+The roadmap toward a SuperAgent (task queue, checkpoints, layered memory, skill ecosystem and
+multi-agent execution) is in [docs/superagent-plan.md](docs/superagent-plan.md) (Chinese).
+
 ### Build and test (Windows)
 
 ```powershell
