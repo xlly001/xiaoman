@@ -45,6 +45,24 @@ class TaskThreadStoreTest {
         assertEquals(listOf("1. 点击 快递：成功", "2. 输入 123：成功"), checkpoint.history)
     }
 
+    @Test fun `append with checkpoint stores the row and step in one write`() {
+        val file = tempFile()
+        val store = TaskThreadStore(file)
+        store.start("t1", "查快递", at = 100)
+        store.appendWithCheckpoint(
+            "t1",
+            ChatItem.Progress(1, "1. 点击 快递：成功", true),
+            steps = 1,
+            line = "1. 点击 快递：成功",
+            at = 200,
+        )
+
+        val reloaded = TaskThreadStore(file).get("t1")
+        assertEquals(1, reloaded?.items?.size)
+        assertEquals(1, reloaded?.checkpoint?.steps)
+        assertEquals(listOf("1. 点击 快递：成功"), reloaded?.checkpoint?.history)
+    }
+
     @Test fun `checkpoint history keeps only the newest lines`() {
         val store = TaskThreadStore(tempFile())
         store.start("t1", "查快递", at = 100)

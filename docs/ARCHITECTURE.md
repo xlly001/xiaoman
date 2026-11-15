@@ -167,8 +167,8 @@ Agent 会按目标检索 `howto` 笔记，把命中结果放进操作提示词�
   `launch` 的 `finally` 中再次 `drainQueue()`，若成功取到下一条就不把 `busy` 置回 false，
   避免前台服务在任务交接时闪烁。
 - 检查点与恢复（P0-2）：监听器在 `StepExecuted`/`StepBlocked` 时调用
-  `TaskThreadStore.checkpoint`，把已完成步数与该步的中文描述写进 `TaskThread.checkpoint`
-  （只留最近 12 条，作为模型上下文，不受界面语言影响）。重启时 `TaskQueueStore` 把 RUNNING 行
+  `TaskThreadStore.appendWithCheckpoint`，把进度行与检查点合并成一次写盘；检查点包含已完成步数
+  与该步的中文描述（只留最近 12 条，作为模型上下文，不受界面语言影响）。重启时 `TaskQueueStore` 把 RUNNING 行
   改回 QUEUED 并置 `resumed`；`AgentSession.init` 对每个中断任务查线程检查点：有检查点的保留，
   没有的把队列行、线程和主对话任务卡一起标记为失败。执行时 `drainQueue` 用检查点构造
   `TaskResume(steps, history)`，`OperatorLoop` 把它作为初始历史、从 `steps` 继续计数，并在首轮

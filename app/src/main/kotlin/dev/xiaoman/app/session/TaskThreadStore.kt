@@ -76,6 +76,29 @@ class TaskThreadStore(
         commit(current.toMutableList().also { it[index] = thread.copy(items = items) })
     }
 
+    /** Appends [item] and updates the checkpoint in one file write; used on every task step. */
+    @Synchronized
+    fun appendWithCheckpoint(
+        taskId: String,
+        item: ChatItem,
+        steps: Int,
+        line: String,
+        maxHistory: Int = 12,
+        at: Long = System.currentTimeMillis(),
+    ) {
+        val current = _threads.value
+        val index = current.indexOfFirst { it.id == taskId }
+        if (index < 0) return
+        val thread = current[index]
+        val before = thread.checkpoint
+        val history = (before?.history.orEmpty() + line)
+            .filter { it.isNotBlank() }
+            .takeLast(maxHistory)
+        val items = (thread.items + item).takeLast(maxItemsPerThread)
+        val checkpoint = TaskCheckpoint(maxOf(steps, before?.steps ?: 0), history, at)
+        commit(current.toMutableList().also { it[index] = thread.copy(items = items, checkpoint = checkpoint) })
+    }
+
     /**
      * Records one step for crash recovery. [steps] is the number of device actions already done;
      * [line] is appended to a short history the operator sees after a restart.

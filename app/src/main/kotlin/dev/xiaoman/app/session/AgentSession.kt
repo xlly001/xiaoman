@@ -116,6 +116,17 @@ class AgentSession(
     /** Main-chat TaskEntry id for each task thread, so completion can update the same card. */
     private val taskEntryIds = java.util.concurrent.ConcurrentHashMap<String, Long>()
 
+    /** Checkpoint for one step: completed steps and a compact, UI-language-independent line. */
+    private fun checkpointOf(event: AgentEvent): Pair<Int, String>? = when (event) {
+        is AgentEvent.StepExecuted -> {
+            val outcome = if (event.result.ok) "成功" else "失败：${event.result.message ?: "未知原因"}"
+            (event.stepIndex + 1) to "${event.stepIndex + 1}. ${StepText.action(event.action)}：$outcome"
+        }
+        is AgentEvent.StepBlocked ->
+            event.stepIndex to "${event.stepIndex + 1}. ${StepText.action(event.action)}：被拦截（${event.decision.reason}）"
+        else -> null
+    }
+
     init {
         // A RUNNING queue row means the process died mid-task. Tasks with a checkpoint go back to
         // the queue so the operator can continue; the rest are closed honestly.
@@ -165,24 +176,6 @@ class AgentSession(
             }
         }
         if (event is AgentEvent.PhoneTaskFinished) onTaskEnd(event.taskId)
-        // Checkpoints double as the operator's history after a restart, so keep them compact and
-        // independent of the UI language.
-        when (event) {
-            is AgentEvent.StepExecuted -> {
-                val outcome = if (event.result.ok) "成功" else "失败：${event.result.message ?: "未知原因"}"
-                taskThreads?.checkpoint(
-                    event.taskId,
-                    event.stepIndex + 1,
-                    "${event.stepIndex + 1}. ${StepText.action(event.action)}：$outcome",
-                )
-            }
-            is AgentEvent.StepBlocked -> taskThreads?.checkpoint(
-                event.taskId,
-                event.stepIndex,
-                "${event.stepIndex + 1}. ${StepText.action(event.action)}：被拦截（${event.decision.reason}）",
-            )
-            else -> Unit
-        }
         stepText.status(event)?.let { _status.value = it }
         stepText.chatItem(event, ids.incrementAndGet())?.let { item ->
             when (event) {
@@ -214,8 +207,14 @@ class AgentSession(
                     }
                 }
                 else -> {
+                    val step = checkpointOf(event)
                     if (taskThreads?.get(event.taskId) != null) {
-                        taskThreads.append(event.taskId, item)
+                        // One commit per step: the progress row and the checkpoint share a write.
+                        if (step != null) {
+                            taskThreads.appendWithCheckpoint(event.taskId, item, step.first, step.second)
+                        } else {
+                            taskThreads.append(event.taskId, item)
+                        }
                     } else {
                         add(item)
                     }
