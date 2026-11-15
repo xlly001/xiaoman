@@ -62,7 +62,12 @@ interface StopSignal {
 
 interface Agent {
     /** Handles one chat turn: replies, memory tools, or a phone task. Suspends until the turn is done. */
-    suspend fun handle(userMessage: String, listener: AgentListener, stop: StopSignal)
+    suspend fun handle(
+        userMessage: String,
+        listener: AgentListener,
+        stop: StopSignal,
+        images: List<ByteArray> = emptyList(),
+    )
 
     /** Runs one phone task directly (used by the developer CLI and skill tests). */
     suspend fun runPhoneTask(goal: String, skillName: String?, listener: AgentListener, stop: StopSignal): AgentEvent.PhoneTaskFinished

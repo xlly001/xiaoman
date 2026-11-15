@@ -112,6 +112,11 @@ Agent 会按目标检索 `howto` 笔记，把命中结果放进操作提示词�
 | 内容 | 文件 | 手机位置 / 说明 |
 |---|---|---|
 | 会话历史 | `app/session/ChatHistoryStore.kt` | `<external files>/chat/history.json`，默认 500 条，可在设置中调为 50–2000；原子写入；「清空会话」只删这个文件 |
+| 任务子对话 | `app/session/TaskThreadStore.kt` | `<external files>/chat/tasks.json`；每个手机任务一个线程，最多 100 个任务、每任务 200 条记录；主对话只保留 `ChatItem.TaskEntry` 卡片 |
+| 小满日记 | `app/diary/DiaryStore.kt` | `<external files>/diary/diary.json`；任务完成/失败与记忆更新写入，最多 500 条，按天分页 |
+| 全局 Dock | `app/ui/ChatDock.kt` | 输入框 + 导航合并为一张悬浮卡片；所有页签共用草稿；附件、语音、发送/停止都在这张卡里 |
+| 搜索 | `app/ui/SearchScreen.kt` | 右上菜单进入；搜索主对话与任务线程，任务命中可直接打开详情 |
+| 任务详情 | `app/ui/TaskDetailScreen.kt` | 目标、状态、步数与处理过程（默认展开）；返回主对话 |
 | 常用指令 | `app/quick/QuickCommandStore.kt` | `<external files>/chat/quick-commands.json`，最多 8 条，默认六条由多语言资源生成 |
 | 模型自检 | `core-llm/ModelProbe.kt` | 设置页「测试连接」发一条最小请求；操作模型会附带 1×1 PNG，验证图片输入 |
 | 模型目录 | `core-llm/ModelCatalogClient.kt` | 调厂商 OpenAI 兼容的 `GET {baseUrl}/models`；解析 `data[]`/`models[]` 与上下文/最大输出/图片模态元数据，401/404/429 交给 UI 诊断 |
@@ -145,9 +150,16 @@ Agent 会按目标检索 `howto` 笔记，把命中结果放进操作提示词�
   （10–300 秒，写进两个 `ModelConfig`）、会话保留条数 `chat.historyLimit`（50–2000）。
 - 会话初始恢复使用固定 2000 条上限，不在 `Application.onCreate` 阶段读加密设置；动态上限在
   每次追加/保存时裁剪，避免 Robolectric/恢复场景触发未就绪的 `AndroidKeyStore`。
+- 手机任务事件按 `taskId` 路由：`PhoneTaskStarted` 创建线程并向主对话加入 `TaskEntry`，
+  `Step*`/`NeedsUser`/`Failed` 只写线程，`PhoneTaskFinished` 完成后把同一张任务卡更新为完成/失败。
+  `SkillChosen` 早于 `PhoneTaskStarted`，因此不单独写入主对话。
+- 附件链路：`ChatDock` 读图/拍照 → 最长边 1280px PNG → `AgentSession.submit(images)` →
+  `Agent.handle(..., images)` → `ChatMessage.user(text, images)` → `ContentPart.ImagePng`。
+  文本文件在客户端读取（≤20KB）后内联进消息；历史只保存 `ChatItem.User.imageCount`。
 
 新增界面文案全部走 `app/src/main/res/values/strings.xml`，英文翻译在
 `values-en/strings.xml`；新增文案时必须同时补两边，避免中文写死在 Compose 代码里。
+当前两边各 342 个 key。
 
 真机验收：在聊天页输入一句话 → 杀进程重开，历史仍在；新建一条常用指令 → 重开仍在；
 点麦克风授权后说一句话 → 文字进入输入框；设置页分别测试聊天/操作模型 → 成功显示延迟，失败显示

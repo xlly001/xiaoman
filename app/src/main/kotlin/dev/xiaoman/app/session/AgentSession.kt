@@ -69,6 +69,8 @@ class AgentSession(
     private val ready: suspend () -> Unit = {},
     /** Optional local persistence; null keeps the conversation in memory (tests, web runs). */
     private val history: ChatHistoryStore? = null,
+    /** Phone tasks are kept as their own sub-conversations instead of flooding the main chat. */
+    private val taskThreads: TaskThreadStore? = null,
     /** Dynamic history cap from Settings; read on each append. */
     private val historyLimit: () -> Int = { MAX_ITEMS },
     /** Localized event text; the default Chinese object keeps JVM tests and the web server unchanged. */
@@ -106,6 +108,9 @@ class AgentSession(
     /** Phone tasks started but without PhoneTaskFinished yet. */
     private val openRuns = LinkedHashSet<String>()
 
+    /** Main-chat TaskEntry id for each task thread, so completion can update the same card. */
+    private val taskEntryIds = java.util.concurrent.ConcurrentHashMap<String, Long>()
+
     /** Trace first, then the UI. */
     val listener = AgentListener { event ->
         try {
@@ -122,7 +127,44 @@ class AgentSession(
         }
         if (event is AgentEvent.PhoneTaskFinished) onTaskEnd(event.taskId)
         stepText.status(event)?.let { _status.value = it }
-        stepText.chatItem(event, ids.incrementAndGet())?.let(::add)
+        stepText.chatItem(event, ids.incrementAndGet())?.let { item ->
+            when (event) {
+                // SkillChosen precedes PhoneTaskStarted; the thread is created by the latter.
+                is AgentEvent.SkillChosen -> Unit
+                is AgentEvent.PhoneTaskStarted -> {
+                    taskThreads?.start(event.taskId, event.goal)
+                    taskThreads?.append(event.taskId, item)
+                    val entryId = ids.incrementAndGet()
+                    taskEntryIds[event.taskId] = entryId
+                    add(ChatItem.TaskEntry(entryId, event.taskId, event.goal, running = true))
+                }
+                is AgentEvent.PhoneTaskFinished -> {
+                    taskThreads?.append(event.taskId, item)
+                    taskThreads?.finish(event.taskId, event.success, event.summary, event.steps)
+                    taskEntryIds.remove(event.taskId)?.let { entryId ->
+                        update(entryId) { current ->
+                            if (current is ChatItem.TaskEntry) {
+                                current.copy(
+                                    running = false,
+                                    success = event.success,
+                                    summary = event.summary,
+                                    steps = event.steps,
+                                )
+                            } else {
+                                current
+                            }
+                        }
+                    }
+                }
+                else -> {
+                    if (taskThreads?.get(event.taskId) != null) {
+                        taskThreads.append(event.taskId, item)
+                    } else {
+                        add(item)
+                    }
+                }
+            }
+        }
         _events.tryEmit(event)
     }
 
@@ -134,24 +176,24 @@ class AgentSession(
         data object Empty : Submit()
     }
 
-    /** Chat input: answers a pending question, else starts a chat turn. */
-    fun submit(text: String): Submit {
+    /** Chat input: answers a pending question, else starts a chat turn. [images] are PNG bytes. */
+    fun submit(text: String, images: List<ByteArray> = emptyList()): Submit {
         val message = text.trim()
-        if (message.isEmpty()) return Submit.Empty
+        if (message.isEmpty() && images.isEmpty()) return Submit.Empty
         val pending = _question.value
         if (pending != null && pending.answer.complete(message)) {
-            add(ChatItem.User(ids.incrementAndGet(), message))
+            add(ChatItem.User(ids.incrementAndGet(), message, imageCount = images.size))
             return Submit.Answered
         }
         val agent = agent()
         if (agent == null) {
-            add(ChatItem.User(ids.incrementAndGet(), message))
+            add(ChatItem.User(ids.incrementAndGet(), message, imageCount = images.size))
             add(ChatItem.Error(ids.incrementAndGet(), texts.notConfigured))
             return Submit.NotConfigured
         }
-        val started = launch(null) { agent.handle(message, listener, stopSignal) }
+        val started = launch(null) { agent.handle(message, listener, stopSignal, images) }
         if (!started) return Submit.Busy
-        add(ChatItem.User(ids.incrementAndGet(), message))
+        add(ChatItem.User(ids.incrementAndGet(), message, imageCount = images.size))
         return Submit.Started
     }
 
@@ -267,11 +309,18 @@ class AgentSession(
     fun clearHistory() {
         _items.value = emptyList()
         ids.set(0)
+        taskEntryIds.clear()
+        taskThreads?.clear()
         history?.clear()
     }
 
     private fun add(item: ChatItem) {
         _items.update { (it + item).takeLast(historyLimit().coerceIn(20, 2_000)) }
+        persist()
+    }
+
+    private fun update(id: Long, transform: (ChatItem) -> ChatItem) {
+        _items.update { list -> list.map { if (it.id == id) transform(it) else it } }
         persist()
     }
 

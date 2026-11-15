@@ -12,7 +12,12 @@ sealed class ChatItem {
 
     @Serializable
     @SerialName("user")
-    data class User(override val id: Long, val text: String) : ChatItem()
+    data class User(
+        override val id: Long,
+        val text: String,
+        /** Number of images attached to this message; bytes are not kept in the history file. */
+        val imageCount: Int = 0,
+    ) : ChatItem()
 
     @Serializable
     @SerialName("assistant")
@@ -22,6 +27,19 @@ sealed class ChatItem {
     @Serializable
     @SerialName("progress")
     data class Progress(override val id: Long, val text: String, val ok: Boolean? = null) : ChatItem()
+
+    /** Main-chat entry that opens the task's own sub-conversation. */
+    @Serializable
+    @SerialName("task")
+    data class TaskEntry(
+        override val id: Long,
+        val taskId: String,
+        val goal: String,
+        val running: Boolean,
+        val success: Boolean = false,
+        val summary: String = "",
+        val steps: Int = 0,
+    ) : ChatItem()
 
     @Serializable
     @SerialName("question")

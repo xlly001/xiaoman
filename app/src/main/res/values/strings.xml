@@ -8,6 +8,7 @@
     <string name="nav_memory">记忆</string>
     <string name="nav_settings">设置</string>
     <string name="nav_services">服务</string>
+    <string name="nav_xiaoman">小满</string>
     <string name="back">返回</string>
 
     <!-- Chat -->
@@ -130,7 +131,7 @@
     <string name="chat_status_setup">待设置</string>
     <string name="chat_greeting">今天想做点什么？</string>
     <string name="chat_greeting_hint">说一句，我来帮你动手。也可以先存几条常用指令，下次一点就来。</string>
-    <string name="chat_greeting_footer">指令卡右上角可以编辑或删除；输入框右侧的书签按钮能把当前输入存成指令。</string>
+    <string name="chat_greeting_footer">指令卡右上角可以编辑或删除；点卡片会把提示词填入底部输入框。</string>
     <string name="chat_process">处理过程 · %1$d 条记录</string>
     <string name="chat_process_expand">展开处理过程</string>
     <string name="chat_process_collapse">收起处理过程</string>
@@ -141,9 +142,48 @@
     <string name="chat_mic">语音输入</string>
     <string name="chat_stop_listening">停止语音输入</string>
     <string name="chat_listening">正在听，请说话…</string>
-    <string name="chat_save_command">存为常用指令</string>
     <string name="chat_copy">复制</string>
     <string name="chat_copied">已复制</string>
+    <string name="chat_image_count">图片 × %1$d</string>
+
+    <!-- Attachments -->
+    <string name="attach_add">添加附件</string>
+    <string name="attach_camera">拍照</string>
+    <string name="attach_gallery">相册</string>
+    <string name="attach_file">文件</string>
+    <string name="attach_image_name">图片</string>
+    <string name="attach_photo_name">照片</string>
+    <string name="attach_remove">移除附件</string>
+    <string name="attach_file_failed">无法读取这个文件，请选择 20KB 以内的文本文件</string>
+    <string name="attach_image_failed">无法读取这张图片</string>
+
+    <!-- Xiaoman diary -->
+    <string name="diary_title">小满日记</string>
+    <string name="diary_subtitle">小满做过的事，按天收进卡片，左右滑动查看。</string>
+    <string name="diary_empty_title">还没有日记</string>
+    <string name="diary_empty_body">让小满完成一次任务或记住一条偏好，这里就会留下记录。</string>
+    <string name="diary_count">%1$d 条记录</string>
+    <string name="diary_today">今天</string>
+    <string name="diary_yesterday">昨天</string>
+    <string name="diary_kind_task_done">完成任务</string>
+    <string name="diary_kind_task_failed">任务未完成</string>
+    <string name="diary_kind_memory">记忆</string>
+    <string name="diary_kind_note">记录</string>
+
+    <!-- Search and task threads -->
+    <string name="search">搜索</string>
+    <string name="search_hint">搜索对话和任务</string>
+    <string name="search_empty">没有找到匹配内容</string>
+    <string name="search_main">主对话</string>
+    <string name="search_task">任务</string>
+    <string name="search_close">关闭搜索</string>
+    <string name="task_entry_running">进行中</string>
+    <string name="task_entry_done">已完成</string>
+    <string name="task_entry_failed">未完成</string>
+    <string name="task_entry_open">查看任务</string>
+    <string name="task_detail_title">任务详情</string>
+    <string name="task_detail_steps">%1$d 步</string>
+    <string name="task_detail_empty">这个任务还没有记录。</string>
     <string name="quick_title">常用指令</string>
     <string name="quick_add">新建指令</string>
     <string name="quick_dialog_add_title">新建常用指令</string>

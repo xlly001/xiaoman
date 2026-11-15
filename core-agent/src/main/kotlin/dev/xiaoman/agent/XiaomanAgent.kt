@@ -57,7 +57,12 @@ class XiaomanAgent(
     private val historyLock = Mutex()
     private val history = ArrayDeque<ChatMessage>()
 
-    override suspend fun handle(userMessage: String, listener: AgentListener, stop: StopSignal) {
+    override suspend fun handle(
+        userMessage: String,
+        listener: AgentListener,
+        stop: StopSignal,
+        images: List<ByteArray>,
+    ) {
         val taskId = idFactory()
         val emit: (AgentEvent) -> Unit = listener::onEvent
         val tools = ChatTools(memory, skills, clock, reminders, externalTools, phoneTasks = config.phoneTasks,
@@ -69,7 +74,7 @@ class XiaomanAgent(
             val toolSpecs = builtIn + externalSpecs()
             val system = ChatMessage.system(systemPrompt(userMessage, hasExternalTools = toolSpecs.size > builtIn.size))
             val past = historyLock.withLock { history.toList() }
-            val turn = mutableListOf(ChatMessage.user(userMessage))
+            val turn = mutableListOf(ChatMessage.user(userMessage, images))
             var lastText: String? = null
             var finalText: String? = null
             for (round in 0..MAX_TOOL_ROUNDS) {

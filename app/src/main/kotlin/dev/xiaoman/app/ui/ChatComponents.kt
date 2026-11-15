@@ -20,10 +20,11 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.ListAlt
 import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.AutoAwesome
+import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.DeleteSweep
 import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.outlined.ExpandLess
 import androidx.compose.material.icons.outlined.ExpandMore
@@ -69,6 +70,7 @@ internal fun ChatHeader(
     attention: Boolean,
     onOpenSettings: () -> Unit,
     onClearHistory: () -> Unit,
+    onSearch: () -> Unit,
 ) {
     var menu by rememberSaveable { mutableStateOf(false) }
     Box(Modifier.fillMaxWidth().padding(top = 6.dp, bottom = 2.dp)) {
@@ -77,14 +79,24 @@ internal fun ChatHeader(
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.Top,
         ) {
-            GlassCircle {
-                Icon(Icons.Filled.AutoAwesome, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(21.dp))
+            GlassCircle(onClick = onOpenSettings) {
+                Icon(
+                    Icons.Filled.Settings,
+                    contentDescription = stringResource(R.string.nav_settings),
+                    tint = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.size(21.dp),
+                )
             }
             Box {
                 GlassCircle(onClick = { menu = true }) {
                     Icon(Icons.Filled.MoreVert, contentDescription = stringResource(R.string.more), tint = MaterialTheme.colorScheme.onSurface, modifier = Modifier.size(21.dp))
                 }
                 DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
+                    DropdownMenuItem(
+                        text = { Text(stringResource(R.string.search)) },
+                        leadingIcon = { Icon(Icons.Filled.Search, contentDescription = null) },
+                        onClick = { menu = false; onSearch() },
+                    )
                     DropdownMenuItem(
                         text = { Text(stringResource(R.string.chat_clear)) },
                         leadingIcon = { Icon(Icons.Filled.DeleteSweep, contentDescription = null) },
@@ -228,8 +240,8 @@ internal fun TaskStatus(status: String, onStop: () -> Unit) {
 }
 
 @Composable
-internal fun ProcessCard(entries: List<ChatItem.Progress>) {
-    var expanded by rememberSaveable(entries.first().id) { mutableStateOf(false) }
+internal fun ProcessCard(entries: List<ChatItem.Progress>, initiallyExpanded: Boolean = false) {
+    var expanded by rememberSaveable(entries.first().id, initiallyExpanded) { mutableStateOf(initiallyExpanded) }
     Surface(
         color = MaterialTheme.colorScheme.surfaceContainerLow,
         shape = RoundedCornerShape(18.dp),
@@ -271,7 +283,7 @@ internal fun ProcessCard(entries: List<ChatItem.Progress>) {
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
-internal fun ChatMessage(item: ChatItem) {
+internal fun ChatMessage(item: ChatItem, onOpenTask: (String) -> Unit = {}) {
     val clipboard = LocalClipboardManager.current
     val context = LocalContext.current
     val copied = stringResource(R.string.chat_copied)
@@ -289,12 +301,23 @@ internal fun ChatMessage(item: ChatItem) {
                     onLongClick = { copy(item.text) },
                 ),
             ) {
-                Text(
-                    item.text,
-                    Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onPrimaryContainer,
-                )
+                Column(Modifier.padding(horizontal = 16.dp, vertical = 12.dp)) {
+                    if (item.imageCount > 0) {
+                        Text(
+                            stringResource(R.string.chat_image_count, item.imageCount),
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onPrimaryContainer,
+                        )
+                    }
+                    if (item.text.isNotBlank()) {
+                        Text(
+                            item.text,
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onPrimaryContainer,
+                            modifier = Modifier.padding(top = if (item.imageCount > 0) 4.dp else 0.dp),
+                        )
+                    }
+                }
             }
         }
         is ChatItem.Assistant -> Column(verticalArrangement = Arrangement.spacedBy(1.dp)) {
@@ -323,7 +346,62 @@ internal fun ChatMessage(item: ChatItem) {
             error = false,
         )
         is ChatItem.Error -> NoticeCard(R.string.chat_error_label, item.text, error = true)
+        is ChatItem.TaskEntry -> TaskEntryCard(item, onOpenTask)
         is ChatItem.Progress -> Unit
+    }
+}
+
+/** Entry under the main chat text: tapping opens the task's own sub-conversation. */
+@Composable
+private fun TaskEntryCard(item: ChatItem.TaskEntry, onOpenTask: (String) -> Unit) {
+    val status = when {
+        item.running -> stringResource(R.string.task_entry_running)
+        item.success -> stringResource(R.string.task_entry_done)
+        else -> stringResource(R.string.task_entry_failed)
+    }
+    val statusColor = when {
+        item.running -> MaterialTheme.colorScheme.primary
+        item.success -> MaterialTheme.colorScheme.primary
+        else -> MaterialTheme.colorScheme.error
+    }
+    Surface(
+        color = MaterialTheme.colorScheme.surfaceContainerLow,
+        shape = RoundedCornerShape(20.dp),
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+        modifier = Modifier.fillMaxWidth().clickable { onOpenTask(item.taskId) },
+    ) {
+        Row(Modifier.padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
+            Icon(
+                Icons.AutoMirrored.Outlined.ListAlt,
+                contentDescription = null,
+                tint = statusColor,
+                modifier = Modifier.size(18.dp),
+            )
+            Column(Modifier.weight(1f).padding(horizontal = 10.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                Text(
+                    item.goal.ifBlank { stringResource(R.string.task_detail_title) },
+                    style = MaterialTheme.typography.bodyMedium,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                Text(status, style = MaterialTheme.typography.labelSmall, color = statusColor)
+                if (!item.running && item.summary.isNotBlank()) {
+                    Text(
+                        item.summary,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
+            }
+            Icon(
+                Icons.Filled.ChevronRight,
+                contentDescription = stringResource(R.string.task_entry_open),
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.size(20.dp),
+            )
+        }
     }
 }
 

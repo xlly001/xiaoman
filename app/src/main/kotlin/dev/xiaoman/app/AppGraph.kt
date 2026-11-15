@@ -4,13 +4,16 @@ import android.content.Context
 import android.util.Log
 import dev.xiaoman.agent.XiaomanAgent
 import dev.xiaoman.api.Agent
+import dev.xiaoman.api.AgentEvent
 import dev.xiaoman.api.ModelRole
+import dev.xiaoman.app.diary.DiaryStore
 import dev.xiaoman.app.quick.QuickCommand
 import dev.xiaoman.app.quick.QuickCommandStore
 import dev.xiaoman.app.session.AgentSession
 import dev.xiaoman.app.session.AndroidStepText
 import dev.xiaoman.app.session.ChatHistoryStore
 import dev.xiaoman.app.session.SessionTexts
+import dev.xiaoman.app.session.TaskThreadStore
 import dev.xiaoman.app.settings.AppSettings
 import dev.xiaoman.app.settings.ModelSettings
 import dev.xiaoman.app.settings.SettingsStore
@@ -84,6 +87,12 @@ class AppGraph(context: Context, private val llm: LlmClientFactory = LlmClients.
     val chatHistory by lazy {
         ChatHistoryStore(File(chatDir, "history.json")) { settings.current.chatHistoryLimit }
     }
+
+    /** Xiaoman's daily activity diary, shown in the "小满" tab. */
+    val diary by lazy { DiaryStore(File(externalRoot, "diary/diary.json")) }
+
+    /** Phone tasks as their own conversations, linked from the main chat. */
+    val taskThreads by lazy { TaskThreadStore(File(chatDir, "tasks.json")) }
 
     val quickCommands by lazy {
         QuickCommandStore(File(chatDir, "quick-commands.json"), defaultQuickCommands())
@@ -162,6 +171,7 @@ class AppGraph(context: Context, private val llm: LlmClientFactory = LlmClients.
             ),
             ready = { startup.await() },
             history = chatHistory,
+            taskThreads = taskThreads,
             historyLimit = { settings.current.chatHistoryLimit },
             stepText = AndroidStepText(app),
         )
@@ -254,6 +264,26 @@ class AppGraph(context: Context, private val llm: LlmClientFactory = LlmClients.
         }
         scope.launch(Dispatchers.Main.immediate) { session.approval.collect(notifier::showApproval) }
         scope.launch(Dispatchers.Main.immediate) { session.question.collect(notifier::showQuestion) }
+        scope.launch {
+            // Every finished phone task and memory update becomes one diary line for the "小满" tab.
+            var goal = ""
+            session.events.collect { event ->
+                when (event) {
+                    is AgentEvent.PhoneTaskStarted -> goal = event.goal
+                    is AgentEvent.PhoneTaskFinished -> {
+                        val title = goal.ifBlank { event.summary }
+                        diary.add(
+                            kind = if (event.success) "task_done" else "task_failed",
+                            title = title,
+                            detail = event.summary.takeIf { it.isNotBlank() && it != title }.orEmpty(),
+                        )
+                        goal = ""
+                    }
+                    is AgentEvent.MemoryUpdated -> diary.add("memory", event.permalink)
+                    else -> Unit
+                }
+            }
+        }
     }
 
     private suspend fun prepareSkills() {

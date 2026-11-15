@@ -46,7 +46,13 @@ data class ChatMessage(
 
     companion object {
         fun system(text: String) = ChatMessage(ChatRole.SYSTEM, listOf(ContentPart.Text(text)))
-        fun user(text: String) = ChatMessage(ChatRole.USER, listOf(ContentPart.Text(text)))
+        fun user(text: String, images: List<ByteArray> = emptyList()) = ChatMessage(
+            ChatRole.USER,
+            buildList {
+                add(ContentPart.Text(text))
+                images.forEach { add(ContentPart.ImagePng(it)) }
+            },
+        )
         fun assistant(text: String) = ChatMessage(ChatRole.ASSISTANT, listOf(ContentPart.Text(text)))
         fun tool(callId: String, text: String) = ChatMessage(ChatRole.TOOL, listOf(ContentPart.Text(text)), toolCallId = callId)
     }

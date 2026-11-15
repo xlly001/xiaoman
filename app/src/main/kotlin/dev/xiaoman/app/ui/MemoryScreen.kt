@@ -5,6 +5,7 @@ import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -271,7 +272,10 @@ private fun MemoryList(state: MemoryState, vm: MemoryViewModel, onNew: () -> Uni
         if (state.error != null && state.error != "empty") {
             Text(state.error, modifier = Modifier.padding(horizontal = 18.dp), color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
         }
-        LazyColumn(Modifier.fillMaxSize()) {
+        LazyColumn(
+            Modifier.fillMaxSize(),
+            contentPadding = PaddingValues(bottom = DockSpace + 8.dp),
+        ) {
             items(state.rows, key = { it.permalink }) { row ->
                 Card(
                     shape = RoundedCornerShape(20.dp),

@@ -45,16 +45,28 @@ header for its environment variables.
 
 ## Secondary development: Open Muse UI and everyday conveniences
 
-This fork builds on the main course version with an Open Muse inspired interface (near-white paper,
-grey bubbles, one blue accent, 22dp cards, system sans-serif) and these additions:
+This fork builds on the main course version with an Open Muse inspired interface plus the soft blue
+wash, white rounded cards and one-piece bottom dock of the reference app:
 
+- **Global dock**: the composer and navigation are one floating card, available on every tab. With the
+  keyboard open only the input row remains; the margins around the card stay transparent and page
+  content scrolls behind it.
+- **Attachments**: the plus button offers camera, gallery and text files. Images are sent to the model
+  as image parts, text files are inlined, the send button is hidden while empty, and voice stays on the
+  right.
 - **Persistent conversations**: chat rows are stored in `chat/history.json` and survive a restart;
   the chat menu can clear them without touching memory or skills. The default cap is 500 rows and can
   be changed to 50–2000 in Settings.
+- **Task sub-conversations**: every phone task gets its own thread in `chat/tasks.json`; the main chat
+  only keeps one task card (running/done/failed) under the message. Tapping it opens the task detail
+  with all steps expanded.
+- **Search**: the top-right menu searches the main conversation and every task thread; task hits open
+  the thread directly.
+- **Xiaoman diary**: the “Xiaoman” tab shows one horizontally swipeable card per day, fed by finished
+  tasks and memory updates (`diary/diary.json`).
 - **Quick commands**: six default cards (notebook, water reminder, preference, parcel tracking,
-  daily summary, translate) and up to eight editable shortcuts; tapping one fills the composer, and
-  the bookmark button saves the current draft as a shortcut.
-- **Voice input**: the composer microphone uses the system speech recognizer; recording permission and
+  daily summary, translate) and up to eight editable shortcuts; tapping one fills the dock composer.
+- **Voice input**: the dock microphone uses the system speech recognizer; recording permission and
   recognizer failures produce readable messages.
 - **Human-friendly model setup**: pick a provider (Volcano Ark, OpenAI, DeepSeek, Alibaba Bailian,
   Zhipu, Kimi, SiliconFlow, OpenRouter or custom), enter one key, and tap “Fetch available models” to
@@ -65,16 +77,15 @@ grey bubbles, one blue accent, 22dp cards, system sans-serif) and these addition
 - **Model self-check**: Settings can probe the chat and operator models separately. The operator probe
   includes a 1×1 PNG so a text-only model cannot pass; 401, 404, 429 and network failures get specific
   guidance.
-- **More settings**: theme (system/light/dark, applied immediately), language (system/Simplified
-  Chinese/English, applied immediately), send voice transcripts automatically, task and approval
-  notification toggle, request timeout, conversation history cap, open accessibility settings, clear
-  conversation, clear traces, and version/local-data information.
+- **Settings entry**: the gear at the top-left of the chat opens Settings. It covers theme (system/light/
+  dark), language (system/Simplified Chinese/English), automatic voice send, notification toggle,
+  request timeout, conversation cap, accessibility, clear conversation/traces and version information.
 - **Skill and memory management**: search, details, create and one-sentence edit on the Skills screen;
   `skill_read` / `skill_save` / `skill_delete` write user skills only after an explicit chat confirmation.
   The Memory screen can create, edit and delete notes.
 - **Internationalization**: every new UI string lives in resources, with Chinese in
   `app/src/main/res/values/strings.xml` and English in `values-en/strings.xml`; both files currently
-  hold 307 matching keys, and the app language can be switched in Settings.
+  hold 342 matching keys, and the app language can be switched in Settings.
 
 ### Build and test (Windows)
 
@@ -112,9 +123,11 @@ Notes are Markdown files in the Basic Memory format under
 `/sdcard/Android/data/dev.xiaoman.app/files/memory/`, so you can read and edit them in Obsidian.
 Forgetting deletes the file.
 
-Secondary development adds two plain JSON files:
+Secondary development adds these plain JSON files:
 
 - conversation history: `/sdcard/Android/data/dev.xiaoman.app/files/chat/history.json`
+- task threads: `/sdcard/Android/data/dev.xiaoman.app/files/chat/tasks.json`
+- Xiaoman diary: `/sdcard/Android/data/dev.xiaoman.app/files/diary/diary.json`
 - quick commands: `/sdcard/Android/data/dev.xiaoman.app/files/chat/quick-commands.json`
 
 They can be backed up or deleted; the app then starts with an empty history or the default shortcuts.

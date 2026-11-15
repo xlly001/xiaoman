@@ -41,7 +41,12 @@ class AgentSessionTest {
     private class AskingAgent(private val users: () -> AgentSession) : Agent {
         val gate = CompletableDeferred<Unit>()
 
-        override suspend fun handle(userMessage: String, listener: AgentListener, stop: StopSignal) {
+        override suspend fun handle(
+            userMessage: String,
+            listener: AgentListener,
+            stop: StopSignal,
+            images: List<ByteArray>,
+        ) {
             val answer = users().ask("t1", "去哪里？", false)
             listener.onEvent(AgentEvent.Reply("t1", "好的，去$answer"))
         }

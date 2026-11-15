@@ -152,7 +152,12 @@ fun SkillsScreen(graph: AppGraph, onAuthorSkill: (String) -> Unit) {
         )
         if (state.loading) LinearProgressIndicator(Modifier.fillMaxWidth())
         LazyColumn(
-            contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 18.dp, vertical = 10.dp),
+            contentPadding = androidx.compose.foundation.layout.PaddingValues(
+                start = 18.dp,
+                end = 18.dp,
+                top = 10.dp,
+                bottom = DockSpace + 10.dp,
+            ),
             verticalArrangement = Arrangement.spacedBy(10.dp),
         ) {
             if (!state.loading && visible.isEmpty()) {

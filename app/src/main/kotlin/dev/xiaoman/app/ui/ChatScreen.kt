@@ -10,12 +10,15 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.ime
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -50,8 +53,11 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.res.stringResource
@@ -72,8 +78,9 @@ import dev.xiaoman.hands.XiaomanAccessibilityService
 fun ChatScreen(
     graph: AppGraph,
     onOpenSettings: () -> Unit,
-    pendingDraft: String? = null,
-    onDraftConsumed: () -> Unit = {},
+    onFillDraft: (String) -> Unit,
+    onOpenTask: (String) -> Unit,
+    onSearch: () -> Unit,
 ) {
     val session = graph.session
     val items by session.items.collectAsStateWithLifecycle()
@@ -88,34 +95,11 @@ fun ChatScreen(
     val focus = LocalFocusManager.current
     val keyboard = LocalSoftwareKeyboardController.current
     val notificationsGranted = rememberNotificationPermission()
-    var draft by rememberSaveable { mutableStateOf("") }
     var addCommand by rememberSaveable { mutableStateOf(false) }
     var editCommand by remember { mutableStateOf<QuickCommand?>(null) }
     var deleteCommand by remember { mutableStateOf<QuickCommand?>(null) }
-    var saveDraftCommand by rememberSaveable { mutableStateOf(false) }
     var clearHistory by rememberSaveable { mutableStateOf(false) }
-
-    LaunchedEffect(pendingDraft) {
-        if (!pendingDraft.isNullOrEmpty()) {
-            draft = pendingDraft
-            onDraftConsumed()
-        }
-    }
-
-    val voice = rememberVoiceInput { recognized ->
-        val message = if (draft.isBlank()) recognized else draft.trimEnd() + " " + recognized
-        if (settings.voiceAutoSend) {
-            if (session.submit(message) != AgentSession.Submit.Busy) draft = ""
-        } else {
-            draft = message
-        }
-    }
-    LaunchedEffect(voice.errorRes) {
-        voice.errorRes?.let {
-            Toast.makeText(context, context.getString(it), Toast.LENGTH_SHORT).show()
-            voice.clearError()
-        }
-    }
+    val keyboardOpen = WindowInsets.ime.getBottom(LocalDensity.current) > 0
 
     val rows = remember(items) { chatTimeline(items) }
     val listState = rememberLazyListState()
@@ -129,69 +113,72 @@ fun ChatScreen(
         }
     }
 
-    Column(Modifier.fillMaxSize()) {
-        ChatHeader(
-            ready = settings.configured && service != null,
-            busy = busy,
-            attention = approval != null || question != null,
-            onOpenSettings = onOpenSettings,
-            onClearHistory = { clearHistory = true },
-        )
-        if (service == null) {
-            MuseBanner(stringResource(R.string.banner_accessibility), stringResource(R.string.banner_accessibility_action)) {
-                context.startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
-            }
-        }
-        if (!settings.configured) {
-            MuseBanner(stringResource(R.string.banner_models), stringResource(R.string.banner_models_action), onOpenSettings)
-        }
-        if (!notificationsGranted.granted) {
-            MuseBanner(stringResource(R.string.banner_notifications), stringResource(R.string.banner_notifications_action), notificationsGranted.request)
-        }
-        LazyColumn(
-            state = listState,
-            modifier = Modifier.weight(1f).fillMaxWidth(),
-            contentPadding = PaddingValues(horizontal = 14.dp, vertical = 4.dp),
-            verticalArrangement = if (items.isEmpty()) {
-                Arrangement.spacedBy(8.dp)
-            } else {
-                // Keep the newest message close to the composer instead of leaving a blank strip below it.
-                Arrangement.spacedBy(8.dp, Alignment.Bottom)
-            },
-        ) {
-            if (items.isEmpty()) {
-                item {
-                    ChatWelcome(
-                        commands = commands,
-                        onRun = { draft = it.prompt },
-                        onEdit = { editCommand = it },
-                        onDelete = { deleteCommand = it },
-                        onAdd = { addCommand = true },
-                    )
-                }
-            }
-            items(rows, key = { it.id }) { row ->
-                when (row) {
-                    is TimelineRow.Message -> ChatMessage(row.item)
-                    is TimelineRow.Process -> ProcessCard(row.entries)
-                }
-            }
-        }
-        if (approval != null) {
-            ApprovalCard(approval!!, session)
-        } else {
-            if (busy) TaskStatus(status ?: stringResource(R.string.chat_status_busy), session::stop)
-            ChatInput(
-                text = draft,
-                onChange = { draft = it },
-                session = session,
+    // Room reserved under the last row so it can scroll above the floating dock.
+    val bottomSpace = if (keyboardOpen) 64.dp else DockSpace + 8.dp
+
+    Box(Modifier.fillMaxSize()) {
+        Column(Modifier.fillMaxSize()) {
+            ChatHeader(
+                ready = settings.configured && service != null,
                 busy = busy,
-                answering = question != null,
-                listening = voice.listening,
-                onMic = { if (voice.listening) voice.stop() else voice.start() },
-                onSaveCommand = { saveDraftCommand = true },
-                canSaveCommand = draft.isNotBlank(),
+                attention = approval != null || question != null,
+                onOpenSettings = onOpenSettings,
+                onClearHistory = { clearHistory = true },
+                onSearch = onSearch,
             )
+            if (service == null) {
+                MuseBanner(stringResource(R.string.banner_accessibility), stringResource(R.string.banner_accessibility_action)) {
+                    context.startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+                }
+            }
+            if (!settings.configured) {
+                MuseBanner(stringResource(R.string.banner_models), stringResource(R.string.banner_models_action), onOpenSettings)
+            }
+            if (!notificationsGranted.granted) {
+                MuseBanner(stringResource(R.string.banner_notifications), stringResource(R.string.banner_notifications_action), notificationsGranted.request)
+            }
+            LazyColumn(
+                state = listState,
+                modifier = Modifier.weight(1f).fillMaxWidth(),
+                contentPadding = PaddingValues(start = 14.dp, end = 14.dp, top = 4.dp, bottom = bottomSpace),
+                verticalArrangement = if (items.isEmpty()) {
+                    Arrangement.spacedBy(8.dp)
+                } else {
+                    // Keep the newest message close to the composer instead of leaving a blank strip below it.
+                    Arrangement.spacedBy(8.dp, Alignment.Bottom)
+                },
+            ) {
+                if (items.isEmpty()) {
+                    item {
+                        ChatWelcome(
+                            commands = commands,
+                            onRun = { onFillDraft(it.prompt) },
+                            onEdit = { editCommand = it },
+                            onDelete = { deleteCommand = it },
+                            onAdd = { addCommand = true },
+                        )
+                    }
+                }
+                items(rows, key = { it.id }) { row ->
+                    when (row) {
+                        is TimelineRow.Message -> ChatMessage(row.item, onOpenTask)
+                        is TimelineRow.Process -> ProcessCard(row.entries)
+                    }
+                }
+            }
+        }
+        // The composer floats over the conversation; only its own pill is opaque, so the chat
+        // stays visible in the transparent margins around the buttons.
+        // Progress and approval cards sit just above the shared dock.
+        Column(
+            Modifier.align(Alignment.BottomCenter).fillMaxWidth()
+                .padding(bottom = if (keyboardOpen) 56.dp else DockSpace),
+        ) {
+            if (approval != null) {
+                ApprovalCard(approval!!, session)
+            } else if (busy) {
+                TaskStatus(status ?: stringResource(R.string.chat_status_busy), session::stop)
+            }
         }
     }
 
@@ -225,17 +212,6 @@ fun ChatScreen(
             },
         )
     }
-    if (saveDraftCommand) {
-        QuickCommandDialog(
-            initial = null,
-            initialPrompt = draft,
-            onDismiss = { saveDraftCommand = false },
-            onSave = { title, prompt ->
-                graph.quickCommands.add(title, prompt)
-                saveDraftCommand = false
-            },
-        )
-    }
     if (clearHistory) {
         AlertDialog(
             onDismissRequest = { clearHistory = false },
@@ -265,105 +241,6 @@ private fun MuseBanner(text: String, action: String, onClick: () -> Unit) {
         ) {
             Text(text, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSecondaryContainer, modifier = Modifier.weight(1f))
             TextButton(onClick = onClick) { Text(action) }
-        }
-    }
-}
-
-@Composable
-private fun ChatInput(
-    text: String,
-    onChange: (String) -> Unit,
-    session: AgentSession,
-    busy: Boolean,
-    answering: Boolean,
-    listening: Boolean,
-    onMic: () -> Unit,
-    onSaveCommand: () -> Unit,
-    canSaveCommand: Boolean,
-) {
-    val focus = LocalFocusManager.current
-    val keyboard = LocalSoftwareKeyboardController.current
-    val canSend = text.isNotBlank() && (!busy || answering)
-    fun send() {
-        if (!canSend) return
-        when (session.submit(text)) {
-            AgentSession.Submit.Busy, AgentSession.Submit.Empty -> Unit
-            else -> {
-                onChange("")
-                focus.clearFocus()
-                keyboard?.hide()
-            }
-        }
-    }
-    Surface(color = MaterialTheme.colorScheme.background) {
-        Row(
-            Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 4.dp),
-            verticalAlignment = Alignment.Bottom,
-        ) {
-            Surface(
-                shape = RoundedCornerShape(24.dp),
-                color = MaterialTheme.colorScheme.surfaceContainerLow,
-                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
-                modifier = Modifier.weight(1f),
-            ) {
-                Row(verticalAlignment = Alignment.Bottom, modifier = Modifier.padding(start = 4.dp, end = 6.dp, top = 2.dp, bottom = 2.dp)) {
-                    IconButton(onClick = onMic, enabled = !busy || answering) {
-                        Icon(
-                            if (listening) Icons.Filled.Stop else Icons.Filled.Mic,
-                            contentDescription = stringResource(if (listening) R.string.chat_stop_listening else R.string.chat_mic),
-                            tint = if (listening) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                    }
-                    TextField(
-                        value = text,
-                        onValueChange = onChange,
-                        modifier = Modifier.weight(1f),
-                        placeholder = {
-                            Text(
-                                stringResource(
-                                    when {
-                                        listening -> R.string.chat_listening
-                                        answering -> R.string.chat_answer_hint
-                                        else -> R.string.chat_input_hint
-                                    },
-                                ),
-                                style = MaterialTheme.typography.bodyMedium,
-                            )
-                        },
-                        textStyle = MaterialTheme.typography.bodyMedium,
-                        maxLines = 4,
-                        shape = RoundedCornerShape(22.dp),
-                        colors = TextFieldDefaults.colors(
-                            focusedContainerColor = Color.Transparent,
-                            unfocusedContainerColor = Color.Transparent,
-                            disabledContainerColor = Color.Transparent,
-                            focusedIndicatorColor = Color.Transparent,
-                            unfocusedIndicatorColor = Color.Transparent,
-                            disabledIndicatorColor = Color.Transparent,
-                        ),
-                        keyboardOptions = KeyboardOptions(imeAction = ImeAction.Send),
-                        keyboardActions = KeyboardActions(onSend = { send() }),
-                    )
-                    IconButton(onClick = onSaveCommand, enabled = canSaveCommand) {
-                        Icon(
-                            Icons.Filled.BookmarkAdd,
-                            contentDescription = stringResource(R.string.chat_save_command),
-                            tint = if (canSaveCommand) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.outlineVariant,
-                        )
-                    }
-                }
-            }
-            Spacer(Modifier.width(8.dp))
-            FilledIconButton(
-                onClick = { if (busy && !answering) session.stop() else send() },
-                enabled = (busy && !answering) || canSend,
-                modifier = Modifier.padding(bottom = 2.dp).size(44.dp),
-            ) {
-                Icon(
-                    if (busy && !answering) Icons.Filled.Stop else Icons.Filled.ArrowUpward,
-                    contentDescription = stringResource(if (busy && !answering) R.string.chat_stop else R.string.chat_send),
-                )
-            }
         }
     }
 }

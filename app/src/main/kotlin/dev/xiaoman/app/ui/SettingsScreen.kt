@@ -222,7 +222,7 @@ fun SettingsScreen(graph: AppGraph) {
 
     LazyColumn(
         Modifier.fillMaxSize(),
-        contentPadding = PaddingValues(horizontal = 18.dp, vertical = 14.dp),
+        contentPadding = PaddingValues(start = 18.dp, end = 18.dp, top = 14.dp, bottom = DockSpace + 14.dp),
         verticalArrangement = Arrangement.spacedBy(14.dp),
     ) {
         item {
