@@ -1,5 +1,6 @@
 package dev.xiaoman.app.ui
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -77,6 +78,8 @@ fun SearchScreen(graph: AppGraph, onClose: () -> Unit, onOpenTask: (String) -> U
     val items by graph.session.items.collectAsStateWithLifecycle()
     val threads by graph.taskThreads.threads.collectAsStateWithLifecycle()
     var query by rememberSaveable { mutableStateOf("") }
+    // Search is a sheet over the current page; back closes it instead of leaving the app.
+    BackHandler(onBack = onClose)
 
     val hits = remember(query, items, threads) {
         val needle = query.trim()

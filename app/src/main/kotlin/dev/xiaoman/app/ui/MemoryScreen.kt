@@ -58,6 +58,7 @@ import dev.xiaoman.api.Note
 import dev.xiaoman.app.AppGraph
 import dev.xiaoman.app.R
 import dev.xiaoman.memory.BasicMemoryFormat
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -65,6 +66,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.debounce
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 /** A row of the memory list: every note when the query is blank, search hits otherwise. */
 data class MemoryRow(val permalink: String, val title: String, val detail: String)
@@ -97,22 +99,27 @@ class MemoryViewModel(private val memory: MemoryStore) : ViewModel() {
 
     fun refresh() {
         viewModelScope.launch {
-            _state.update { it.copy(loading = true) }
+            // The first load paints a spinner; a later re-sync keeps the rows on screen so
+            // returning to this tab never flashes an empty state.
+            _state.update { it.copy(loading = it.rows.isEmpty()) }
             val q = _state.value.query.trim()
-            val rows = runCatching {
-                if (q.isEmpty()) {
-                    memory.list().sortedByDescending { it.updatedAtMillis }.map { MemoryRow(it.permalink, it.title, it.permalink) }
-                } else {
-                    memory.search(q, limit = 50).map { MemoryRow(it.permalink, it.title, it.snippet.replace('\n', ' ')) }
-                }
-            }.getOrDefault(emptyList())
+            // The store walks the note directory, so this must never run on the main thread.
+            val rows = withContext(Dispatchers.IO) {
+                runCatching {
+                    if (q.isEmpty()) {
+                        memory.list().sortedByDescending { it.updatedAtMillis }.map { MemoryRow(it.permalink, it.title, it.permalink) }
+                    } else {
+                        memory.search(q, limit = 50).map { MemoryRow(it.permalink, it.title, it.snippet.replace('\n', ' ')) }
+                    }
+                }.getOrDefault(emptyList())
+            }
             _state.update { it.copy(rows = rows, loading = false) }
         }
     }
 
     fun open(permalink: String) {
         viewModelScope.launch {
-            val note = runCatching { memory.read(permalink) }.getOrNull()
+            val note = withContext(Dispatchers.IO) { runCatching { memory.read(permalink) }.getOrNull() }
             _state.update { it.copy(open = note, openMarkdown = note?.let(BasicMemoryFormat::render).orEmpty(), openMissing = note == null) }
         }
     }
@@ -121,7 +128,7 @@ class MemoryViewModel(private val memory: MemoryStore) : ViewModel() {
 
     fun delete(permalink: String) {
         viewModelScope.launch {
-            runCatching { memory.delete(permalink) }
+            withContext(Dispatchers.IO) { runCatching { memory.delete(permalink) } }
             close()
             refresh()
         }
@@ -135,17 +142,19 @@ class MemoryViewModel(private val memory: MemoryStore) : ViewModel() {
                 return@launch
             }
             val path = permalink.trim().ifEmpty { cleanTitle }
-            runCatching {
-                val note = Note(
-                    title = cleanTitle,
-                    permalink = path,
-                    type = type.trim().ifEmpty { "note" },
-                    tags = parseTags(tags),
-                    body = body,
-                    updatedAtMillis = System.currentTimeMillis(),
-                )
-                val text = BasicMemoryFormat.render(note)
-                memory.write(BasicMemoryFormat.parse(text, path, System.currentTimeMillis()))
+            withContext(Dispatchers.IO) {
+                runCatching {
+                    val note = Note(
+                        title = cleanTitle,
+                        permalink = path,
+                        type = type.trim().ifEmpty { "note" },
+                        tags = parseTags(tags),
+                        body = body,
+                        updatedAtMillis = System.currentTimeMillis(),
+                    )
+                    val text = BasicMemoryFormat.render(note)
+                    memory.write(BasicMemoryFormat.parse(text, path, System.currentTimeMillis()))
+                }
             }.onSuccess {
                 _state.update { it.copy(error = null) }
                 close()
@@ -164,17 +173,19 @@ class MemoryViewModel(private val memory: MemoryStore) : ViewModel() {
                 return@launch
             }
             val path = permalink.trim().ifEmpty { original.permalink }
-            runCatching {
-                val note = Note(
-                    title = cleanTitle,
-                    permalink = path,
-                    type = type.trim().ifEmpty { "note" },
-                    tags = parseTags(tags),
-                    body = body,
-                    updatedAtMillis = System.currentTimeMillis(),
-                )
-                val text = BasicMemoryFormat.render(note)
-                memory.write(BasicMemoryFormat.parse(text, path, System.currentTimeMillis()))
+            withContext(Dispatchers.IO) {
+                runCatching {
+                    val note = Note(
+                        title = cleanTitle,
+                        permalink = path,
+                        type = type.trim().ifEmpty { "note" },
+                        tags = parseTags(tags),
+                        body = body,
+                        updatedAtMillis = System.currentTimeMillis(),
+                    )
+                    val text = BasicMemoryFormat.render(note)
+                    memory.write(BasicMemoryFormat.parse(text, path, System.currentTimeMillis()))
+                }
             }.onSuccess {
                 _state.update { it.copy(error = null) }
                 close()
@@ -200,12 +211,13 @@ fun MemoryScreen(graph: AppGraph) {
         NoteView(
             note = note,
             markdown = state.openMarkdown,
+            active = LocalTabActive.current,
             onBack = vm::close,
             onEdit = { editing = note },
             onDelete = { vm.delete(note.permalink) },
         )
     } else {
-        MemoryList(state, vm, onNew = { creating = true })
+        MemoryList(state, vm, active = LocalTabActive.current, onNew = { creating = true })
     }
     if (creating) {
         MemoryEditorDialog(
@@ -230,8 +242,11 @@ fun MemoryScreen(graph: AppGraph) {
 }
 
 @Composable
-private fun MemoryList(state: MemoryState, vm: MemoryViewModel, onNew: () -> Unit) {
-    LaunchedEffect(Unit) { vm.refresh() }
+private fun MemoryList(state: MemoryState, vm: MemoryViewModel, active: Boolean, onNew: () -> Unit) {
+    // This page stays composed while other tabs are shown, so re-sync on every visit instead of
+    // only once: the agent may have written notes in the meantime. The refresh now runs off the
+    // main thread and keeps the current rows, so it costs no visible reload.
+    LaunchedEffect(active) { if (active) vm.refresh() }
     Column(Modifier.fillMaxSize()) {
         Row(
             Modifier.fillMaxWidth().padding(start = 18.dp, end = 8.dp, top = 12.dp),
@@ -295,9 +310,18 @@ private fun MemoryList(state: MemoryState, vm: MemoryViewModel, onNew: () -> Uni
 }
 
 @Composable
-private fun NoteView(note: Note, markdown: String, onBack: () -> Unit, onEdit: () -> Unit, onDelete: () -> Unit) {
+private fun NoteView(
+    note: Note,
+    markdown: String,
+    active: Boolean,
+    onBack: () -> Unit,
+    onEdit: () -> Unit,
+    onDelete: () -> Unit,
+) {
     var confirm by remember { mutableStateOf(false) }
-    BackHandler(onBack = onBack)
+    // The note also stays composed when another tab is shown; the back key must belong to
+    // whichever page is actually on screen.
+    BackHandler(enabled = active, onBack = onBack)
     Column(Modifier.fillMaxSize()) {
         Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth().padding(6.dp)) {
             IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.back)) }

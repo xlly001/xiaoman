@@ -13,19 +13,28 @@ import androidx.core.content.ContextCompat
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.animateDpAsState
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.spring
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.shape.CircleShape
@@ -60,8 +69,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalFocusManager
@@ -385,35 +394,65 @@ fun ChatDock(
             }
             if (!keyboardOpen) {
                 HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f))
-                Row(
-                    Modifier.fillMaxWidth().padding(horizontal = 6.dp, vertical = 2.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Tab.entries.filter { it != Tab.SETTINGS }.forEach { item ->
-                        val active = item == selected
-                        val background by animateColorAsState(
-                            if (active) MaterialTheme.colorScheme.primaryContainer else Color.Transparent,
-                            label = "dock-nav-background",
+                val items = remember { Tab.entries.filter { it != Tab.SETTINGS } }
+                val selectedIndex = items.indexOf(selected).coerceAtLeast(0)
+                BoxWithConstraints(Modifier.fillMaxWidth().padding(horizontal = 6.dp, vertical = 3.dp)) {
+                    val slot = maxWidth / items.size
+                    // The pill is one object that slides between slots. A spring retargets from the
+                    // current offset, so running a finger along the bar reads as one continuous
+                    // motion instead of a reset on every tap.
+                    val pillX by animateDpAsState(
+                        targetValue = slot * selectedIndex,
+                        animationSpec = spring(dampingRatio = 0.8f, stiffness = Spring.StiffnessMediumLow),
+                        label = "dock-pill",
+                    )
+                    Box(Modifier.fillMaxWidth().height(40.dp)) {
+                        Box(
+                            Modifier
+                                .offset(x = pillX)
+                                .width(slot)
+                                .fillMaxHeight()
+                                .padding(horizontal = 3.dp)
+                                .clip(RoundedCornerShape(15.dp))
+                                .background(MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.9f)),
                         )
-                        val tint by animateColorAsState(
-                            if (active) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
-                            label = "dock-nav-tint",
-                        )
-                        Column(
-                            modifier = Modifier
-                                .weight(1f)
-                                .clip(RoundedCornerShape(18.dp))
-                                .background(background)
-                                .selectable(selected = active, onClick = { onSelect(item) }, role = Role.Tab)
-                                .padding(vertical = 3.dp),
-                            horizontalAlignment = Alignment.CenterHorizontally,
-                        ) {
-                            Icon(item.icon, contentDescription = null, tint = tint, modifier = Modifier.size(18.dp))
-                            Text(
-                                stringResource(item.label),
-                                style = MaterialTheme.typography.labelSmall,
-                                color = tint,
-                            )
+                        Row(Modifier.fillMaxSize(), verticalAlignment = Alignment.CenterVertically) {
+                            items.forEach { item ->
+                                val active = item == selected
+                                val tint by animateColorAsState(
+                                    if (active) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+                                    label = "dock-nav-tint",
+                                )
+                                val scale by animateFloatAsState(
+                                    targetValue = if (active) 1.12f else 1f,
+                                    animationSpec = spring(dampingRatio = 0.45f, stiffness = Spring.StiffnessMediumLow),
+                                    label = "dock-nav-scale",
+                                )
+                                Column(
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .fillMaxHeight()
+                                        .clip(RoundedCornerShape(15.dp))
+                                        .selectable(selected = active, onClick = { onSelect(item) }, role = Role.Tab),
+                                    horizontalAlignment = Alignment.CenterHorizontally,
+                                    verticalArrangement = Arrangement.Center,
+                                ) {
+                                    Icon(
+                                        item.icon,
+                                        contentDescription = null,
+                                        tint = tint,
+                                        modifier = Modifier.size(18.dp).graphicsLayer {
+                                            scaleX = scale
+                                            scaleY = scale
+                                        },
+                                    )
+                                    Text(
+                                        stringResource(item.label),
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = tint,
+                                    )
+                                }
+                            }
                         }
                     }
                 }
