@@ -13,6 +13,15 @@
                 <action android:name="dev.xiaoman.debug.STOP" />
                 <action android:name="dev.xiaoman.debug.RELOAD_SKILLS" />
                 <action android:name="dev.xiaoman.debug.SAY" />
+                <action android:name="dev.xiaoman.debug.ENQUEUE" />
+                <action android:name="dev.xiaoman.debug.QUEUE_PAUSE" />
+                <action android:name="dev.xiaoman.debug.QUEUE_RESUME" />
+                <action android:name="dev.xiaoman.debug.QUEUE_CANCEL" />
+                <action android:name="dev.xiaoman.debug.QUEUE_STATUS" />
+                <action android:name="dev.xiaoman.debug.MEDIA_ASR" />
+                <action android:name="dev.xiaoman.debug.MEDIA_TTS" />
+                <action android:name="dev.xiaoman.debug.MEDIA_OCR" />
+                <action android:name="dev.xiaoman.debug.MEDIA_STATUS" />
             </intent-filter>
         </receiver>
     </application>

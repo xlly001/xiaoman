@@ -7,6 +7,7 @@ import dev.xiaoman.api.Agent
 import dev.xiaoman.api.AgentEvent
 import dev.xiaoman.api.ModelRole
 import dev.xiaoman.app.diary.DiaryStore
+import dev.xiaoman.app.media.MediaEngineRouter
 import dev.xiaoman.app.quick.QuickCommand
 import dev.xiaoman.app.quick.QuickCommandStore
 import dev.xiaoman.app.session.AgentSession
@@ -74,6 +75,22 @@ class AppGraph(context: Context, private val llm: LlmClientFactory = LlmClients.
     val mcpFile = File(externalRoot, "mcp.json")
 
     val settings: SettingsStore by lazy { SettingsStore.create(app) }
+
+    /**
+     * Built-in ASR / TTS / OCR. With the default AUTO mode a DeepSeek provider automatically uses
+     * the official `/v1/tools/{asr,tts,ocr}` endpoints and the same API key; other providers fall
+     * back to the Android platform engines (OCR via the chat model's vision channel).
+     */
+    val media by lazy {
+        MediaEngineRouter(
+            context = app,
+            settings = { settings.current },
+            chat = {
+                val current = settings.current
+                if (current.chat.configured) llm.create(current.chat.toModelConfig(ModelRole.CHAT)) else null
+            },
+        )
+    }
 
     val memory by lazy { FileMemoryStore(memoryDir) }
 
@@ -268,6 +285,18 @@ class AppGraph(context: Context, private val llm: LlmClientFactory = LlmClients.
         OverlayController(session, accessibilityDevice, uiVisible = uiVisible, fallbackTitle = app.getString(R.string.app_name)).start(scope)
         scope.launch(Dispatchers.Main.immediate) {
             session.busy.collect { busy -> if (busy) AgentService.start(app) }
+        }
+
+        // Read the finished reply aloud with the built-in TTS engine. Only the final Reply is
+        // spoken (never streaming deltas), so a long answer is synthesized once as one clip.
+        scope.launch {
+            session.events.collect { event ->
+                if (event is AgentEvent.Reply && event.text.isNotBlank() && settings.current.readRepliesAloud) {
+                    val voice = settings.current.ttsVoice
+                    runCatching { media.current().tts.speak(event.text, voice) }
+                        .onFailure { Log.w(TAG, "tts: ${it.message}") }
+                }
+            }
         }
         // Tasks still queued from last time continue once skills and the accessibility bridge are
         // ready; without the bridge the operator loop would fail on its first observation.

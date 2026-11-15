@@ -24,6 +24,18 @@ sealed class DebugCommand {
 
     data object QueueStatus : DebugCommand()
 
+    /** Records a short clip with the built-in ASR engine; [autoStop] ends capture after [millis]. */
+    data class MediaAsr(val autoStop: Boolean, val millis: Long) : DebugCommand()
+
+    /** Speaks [text] through the built-in TTS engine. */
+    data class MediaTts(val text: String, val voice: String) : DebugCommand()
+
+    /** Runs the built-in OCR engine against a fixed 1x1 PNG. */
+    data class MediaOcr(val purpose: String) : DebugCommand()
+
+    /** Reports the resolved media routing decision. */
+    data object MediaStatus : DebugCommand()
+
     enum class QueueOp { PAUSE, RESUME, CANCEL }
 
     companion object {
@@ -36,11 +48,19 @@ sealed class DebugCommand {
         const val ACTION_QUEUE_RESUME = "dev.xiaoman.debug.QUEUE_RESUME"
         const val ACTION_QUEUE_CANCEL = "dev.xiaoman.debug.QUEUE_CANCEL"
         const val ACTION_QUEUE_STATUS = "dev.xiaoman.debug.QUEUE_STATUS"
+        const val ACTION_MEDIA_ASR = "dev.xiaoman.debug.MEDIA_ASR"
+        const val ACTION_MEDIA_TTS = "dev.xiaoman.debug.MEDIA_TTS"
+        const val ACTION_MEDIA_OCR = "dev.xiaoman.debug.MEDIA_OCR"
+        const val ACTION_MEDIA_STATUS = "dev.xiaoman.debug.MEDIA_STATUS"
         const val EXTRA_TEXT = "text"
         const val EXTRA_GOAL = "goal"
         const val EXTRA_SKILL = "skill"
         const val EXTRA_RUN_ID = "run_id"
         const val EXTRA_ID = "id"
+        const val EXTRA_AUTO_STOP = "auto_stop"
+        const val EXTRA_MILLIS = "millis"
+        const val EXTRA_VOICE = "voice"
+        const val EXTRA_PURPOSE = "purpose"
 
         /**
          * @param extra string extra lookup (`Intent::getStringExtra`)
@@ -58,6 +78,14 @@ sealed class DebugCommand {
             ACTION_QUEUE_RESUME -> queueControl(QueueOp.RESUME, extra)
             ACTION_QUEUE_CANCEL -> queueControl(QueueOp.CANCEL, extra)
             ACTION_QUEUE_STATUS -> QueueStatus
+            ACTION_MEDIA_ASR -> MediaAsr(
+                autoStop = extra(EXTRA_AUTO_STOP)?.trim()?.lowercase() != "false",
+                millis = extra(EXTRA_MILLIS)?.trim()?.toLongOrNull()?.coerceIn(200L, 120_000L) ?: 1_200L,
+            )
+            ACTION_MEDIA_TTS -> extra(EXTRA_TEXT)?.trim()?.takeIf { it.isNotEmpty() }
+                ?.let { MediaTts(it, extra(EXTRA_VOICE)?.trim().orEmpty()) }
+            ACTION_MEDIA_OCR -> MediaOcr(extra(EXTRA_PURPOSE)?.trim().orEmpty())
+            ACTION_MEDIA_STATUS -> MediaStatus
             else -> null
         }
 

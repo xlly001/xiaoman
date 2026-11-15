@@ -72,7 +72,8 @@ scripts/gradle.sh test :app:assembleDebug            # 之后可以离线构建
 - **搜索**：聊天页右上角菜单新增搜索，可搜主对话与所有任务子对话；任务结果可直接打开详情。
 - **小满日记**：底部「小满」页按天展示横向滑动卡片，记录完成的任务和记忆更新，存 `diary/diary.json`。
 - **常用指令卡片**：首页默认 6 条指令（选笔记本、喝水提醒、偏好记忆、查快递、总结今天、翻译一句话），可新建、编辑、删除最多 8 条；点卡片把内容填入 Dock 输入框。
-- **语音输入**：Dock 麦克风调用系统语音识别，需要录音权限；设备没有识别服务或权限被拒绝时会给出提示。
+- **语音输入**：Dock 麦克风走内置 ASR 引擎，需要录音权限；设备没有识别服务或权限被拒绝时会给出提示。
+- **内置语音与文字识别（TTS / ASR / OCR）**：三个能力都是可插拔引擎（`core-api/Media.kt`）。**用 DeepSeek 模型时默认调用官方 `/v1/tools/{asr,tts,ocr}`**：端点从聊天服务地址推导、共用同一个 API Key；其它服务商自动回退系统能力（`SpeechRecognizer` / Android `TextToSpeech` / 视觉模型 OCR），设置页也可手动指定「DeepSeek 官方」或「系统内置」。聊天页有麦克风录音识别、附件菜单「识别图中文字」（结果并入输入框而不是当附件发出），以及把最终回复整段朗读的「自动朗读回复」开关；音色可选 `stella` / `tide`，OCR 可选纯文字或版面识别。
 - **人性化模型配置**：设置页先选服务商（火山方舟、OpenAI、DeepSeek、阿里百炼、智谱、Kimi、硅基流动、OpenRouter、自定义），填一个 Key，点「获取可用模型」自动拉取 `/models`；优先使用厂商返回的上下文窗口、最大输出、图片模态等元数据，缺失时按模型族估算；模型列表可展开配置显示名称、最大输出、上下文窗口、Temperature、是否支持图片，再分别设为聊天/操作模型；编辑已选模型会回写实际配置，保存时把全部模型和选择一起落盘。
 - **模型连接自检**：设置页分别测试聊天模型和操作模型。操作模型会附带 1×1 PNG，验证它确实支持图片输入；401、404、429、网络错误分别给出可操作的诊断。
 - **能力页**：原「技能」与「服务」合并为「能力」，顶部分段切换；技能支持搜索、新建、修改、删除，服务支持 MCP 勾选、Key、测试与自定义。
@@ -82,7 +83,7 @@ scripts/gradle.sh test :app:assembleDebug            # 之后可以离线构建
 - **设置入口**：聊天页左上角齿轮进入设置；主题（跟随系统/浅色/深色）、语言（跟随系统/简体中文/English）、语音自动发送、通知开关、请求超时、会话保留条数、无障碍入口、清空会话/轨迹、版本说明。
 - **技能管理**：技能页支持搜索、详情、新建和「用一句话修改」；手机上可直接通过 `skill_read` / `skill_save` / `skill_delete` 读写用户技能，保存前必须在聊天里回复「确认」。
 - **记忆管理**：记忆页支持搜索、新建、编辑、删除；编辑后按 Basic Memory 格式重新写入。
-- **国际化**：新增文案全部走资源文件，中文在 `app/src/main/res/values/strings.xml`，英文在 `values-en/strings.xml`；两边各 364 个 key 且保持同步；设置页可直接切换应用语言。
+- **国际化**：新增文案全部走资源文件，中文在 `app/src/main/res/values/strings.xml`，英文在 `values-en/strings.xml`；两边各 388 个 key 且保持同步；设置页可直接切换应用语言。
 - **流式回复**：聊天回复走 SSE 流式（OpenAI 兼容 `/chat/completions` 的 `stream`），文字逐段增量显示并自动滚动；过程中可中途停止；带工具调用的流式会按片段累积成完整调用。草稿气泡只在内存里更新、不写盘，最终回复到达时才用同一 id 替换为完整文本并持久化，全程只保留一条回复气泡。
 - **评测底座**：新增纯 JVM 模块 `eval/`，用场景 DSL 驱动真实 Agent（脚本化假 LLM / 假设备 / 假记忆，固定时钟与 id），断言事件序列、审批请求与副作用。内置 15 个场景，覆盖聊天、记忆、技能确认、任务与高危拦截（付款 / 发送 / 删除 / 密码框 / 提示词注入）。`./gradlew :eval:run` 生成中文报告与 JSON，任一场景失败即退出码 1，可直接作为 CI 发布门槛；不需要 Key、网络或 Android 设备。
 
@@ -122,6 +123,17 @@ python scripts/e2e/adb_ui.py dump          # 按文本 / content-desc 定位 Com
 
 > 验收队列/停止/续跑时尽量全程用广播 + 文件 + logcat，不要在任务运行中做 `uiautomator dump`：解绑服务的瞬间正在读屏的任务会以「无障碍服务未开启」失败。
 
+### 验收内置 TTS / ASR / OCR
+
+```bash
+python scripts/e2e/setup_media.py --profile model    # 也可 provider / system / forced
+python scripts/e2e/verify_media.py                   # 路由 + 三个端点 + 解析断言
+```
+
+- `setup_media.py` 通过写 `settings.xml` 切换四种路由 profile：`model`（`chat.model=deepseek-*`）、`provider`（`provider.id=deepseek`）、`system`（回退系统能力）、`forced`（非 DeepSeek 服务商下强制官方端点）。
+- `verify_media.py` 先断言四种 profile 选中正确的引擎与端点，再真实触发 `MEDIA_ASR/TTS/OCR`，校验假服务收到的请求形状（ASR 的 `file` part 必须是 RIFF/WAVE 且有实际音频长度、TTS 的 `voice_id`/`format`、OCR 的 `purpose`）与 App 侧的解析结果，共 12 项断言。
+- 假服务的 `/v1/tools/{ocr,asr,tts}` 复刻官方行为：OCR 响应体带前导保活换行符、ASR 返回 `request_id/text/duration_ms`、TTS 返回可播放的 WAV。
+
 ## 技能与开发者 CLI
 
 - 技能格式见 [docs/skills.md](docs/skills.md)，示例在 [skills/examples/](skills/examples/)。
@@ -154,7 +166,7 @@ xiaoman/
 ├── eval/            # 纯 JVM 场景评测：DSL + 假 LLM / 假设备 + 事件断言
 ├── skills/examples/ # 示例技能，也会打包进 APK
 ├── docs/            # 架构与技能文档
-└── scripts/         # 构建脚本 + scripts/e2e/（假 LLM 服务、adb 助手、模型配置注入）
+└── scripts/         # 构建脚本 + scripts/e2e/（假 LLM 服务、adb 助手、模型/媒体配置注入与验收）
 ```
 
 `core-*` 都是纯 Kotlin/JVM 模块，不依赖 Android API，可以在任何机器上跑单元测试。详细设计见

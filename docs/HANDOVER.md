@@ -58,6 +58,7 @@ cd f:\gowork\xllyxx\xiaoman
 | 任务详情 | 目标/状态/步数/处理过程；底部 Dock 可直接继续该任务对话；运行中可停止 |
 | 小满页 | 112dp 圆形头像 + 名字/副标题 + 按天横向 Pager 半透明日期卡片 |
 | 设置 | 服务商 → Key → 拉取 `/models` → 模型展开配置 → 设为聊天/操作模型；主题、语言即时生效；通知、历史上限、无障碍入口、清空轨迹 |
+| 内置能力 | 设置页「内置能力」卡片：引擎模式（跟随服务商 / DeepSeek 官方 / 系统内置）、当前生效引擎与工具端点、朗读音色（stella / tide）、自动朗读、OCR 模式（纯文字 / 版面）、端点覆盖 |
 
 ### 2.2 会话与任务（本阶段重点）
 
@@ -71,9 +72,17 @@ cd f:\gowork\xllyxx\xiaoman
 - **任务卡身份**：`taskId` 是主对话任务卡的唯一身份。续跑时 `taskEntryIds` 为空，所以按 `taskId` 从恢复的 `history.json` 复用旧卡；加载历史时同 id 只保留最新卡，清理旧版本遗留的「进行中」幽灵卡。无检查点的中断任务也会同步关闭主对话卡片。
 - **不学习半截路径**：续跑任务成功也不写 how-to 记忆。
 
+### 2.2b 内置 TTS / ASR / OCR
+
+- **可插拔引擎**：`core-api/Media.kt` 定义 `AsrEngine` / `TtsEngine` / `OcrEngine`（纯 Kotlin，不含 Android 类型）；录音、播放由实现自己拥有。
+- **DeepSeek 默认**：DeepSeek 于 2026-11-13 开放全家桶应用 API，提供独立 `POST /v1/tools/{ocr,asr,tts}`。`provider.id == deepseek` 或 `chat.model` 以 `deepseek` 开头时 `AUTO` 模式直接走官方端点，端点从 `chat.baseUrl` 推导（`https://api.deepseek.com/v1` → `.../v1/tools`）并复用同一 API Key。
+- **回退**：其它服务商走 `SpeechRecognizer` / Android `TextToSpeech` / 对话模型视觉通道 OCR；设置页可强制任一模式。
+- **端点契约**（`core-llm/DeepSeekToolsClient.kt`，均按官方文档实现）：OCR = multipart `file` + `purpose`，响应体前有保活换行符需先跳过再解析 `pages[].text`；ASR = multipart `file`（16 kHz / 16-bit / 单声道 WAV 或 Ogg Opus，≤120 s / 8 MiB）→ `{request_id, text, duration_ms}`；TTS = JSON `{text, voice_id, format, filter_markdown}` → `audio/wav` 或 24 kHz 裸 PCM。
+- **UI 入口**：聊天页麦克风（录音 → 识别 → 填入草稿，`voiceAutoSend` 打开则直接发送）、附件菜单「识别图中文字」（结果并入草稿，不当附件发送）、`自动朗读回复`（只对最终 `Reply` 整段朗读一次，不对 delta 朗读）。
+
 ### 2.3 国际化与文档
 
-- 中英文资源 `values/strings.xml` 与 `values-en/strings.xml`，当前 **364/364**，脚本比对零缺失。
+- 中英文资源 `values/strings.xml` 与 `values-en/strings.xml`，当前 **388/388**，脚本比对零缺失。
 - Spec 三件套：`.trae/specs/xiaoman-ui/{spec,tasks,checklist}.md`，每次功能变更必须增量更新。
 - 用户文档：`README.md` / `README.en.md` / `docs/ARCHITECTURE.md` / `docs/ui-interaction.md`。
 
@@ -110,7 +119,11 @@ cd f:\gowork\xllyxx\xiaoman
 | 提示词 | `core-agent/src/main/kotlin/dev/xiaoman/agent/Prompts.kt` |
 | Agent / LLM 接口 | `core-api/src/main/kotlin/dev/xiaoman/api/{Agent,Llm}.kt` |
 | OpenAI 兼容客户端 | `core-llm/src/main/kotlin/dev/xiaoman/llm/OpenAiCompatibleClient.kt` |
+| DeepSeek 官方 TTS/ASR/OCR 客户端 | `core-llm/src/main/kotlin/dev/xiaoman/llm/DeepSeekToolsClient.kt` |
+| 语音/合成/识别引擎契约 | `core-api/src/main/kotlin/dev/xiaoman/api/Media.kt` |
+| 媒体引擎路由与系统回退 | `app/src/main/kotlin/dev/xiaoman/app/media/*.kt` |
 | 安全策略 | `core-sentinel/src/main/kotlin/dev/xiaoman/sentinel/PolicySentinel.kt` |
+| E2E 假服务与脚本 | `scripts/e2e/{fake_llm_server,adb_ui,setup_model,setup_media,verify_media}.py` |
 
 ---
 
@@ -205,7 +218,7 @@ debug 广播新增（仅 debug 包）：`dev.xiaoman.debug.ENQUEUE`（走真实�
 4. `MainActivity` 把 `darkTheme` 传给 `XiaomanRoot`：手动选「深色」时全屏渐变同步变深（原来只用 `isSystemInDarkTheme()`）。
 5. `adb_ui.py` 在 `uiautomator dump` 后自动恢复无障碍服务绑定。
 
-**回归**：`./gradlew test -x :web-server:test :eval:run :app:lintDebug` 全绿（193 tasks / 1m47s）；`web-server` 的 2 项失败为 P0-4 时已确认的预先存在环境性问题。i18n 仍为 364/364。
+**回归**：`./gradlew test -x :web-server:test :eval:run :app:lintDebug` 全绿；`web-server` 的 2 项失败为 P0-4 时已确认的预先存在环境性问题。i18n 当时为 364/364（现在 388/388）。
 
 ---
 
@@ -215,12 +228,14 @@ debug 广播新增（仅 debug 包）：`dev.xiaoman.debug.ENQUEUE`（走真实�
 
 1. **P0-4 流式回复**（已完成，见 §5.1–5.4）。
 2. **P0-5 评测底座**（已完成，见 §5.5）。
-3. **P0-3 统一工具注册表**：`ToolDescriptor`（名称/来源/风险/作用域/是否可后台/成本），Sentinel 读取描述；MCP 已有 `ConfirmPolicy`，需要与内置工具、技能统一。
-4. 阶段 1：分层记忆、混合检索、用户画像、每日简报。
-5. 阶段 2：技能 v2、测试运行器、MCP 发现与权限、流程引擎 v2。
-6. 阶段 3：规划器、子代理、校验器、预算与长任务。
+3. **P0-6 模拟器端到端验收**（已完成，见 §5.6）。
+4. **P0-7 内置 TTS / ASR / OCR**（已完成，见 §2.2b）：DeepSeek 模型默认走官方 `/v1/tools`，其它服务商回退系统能力。
+5. **P0-3 统一工具注册表**：`ToolDescriptor`（名称/来源/风险/作用域/是否可后台/成本），Sentinel 读取描述；MCP 已有 `ConfirmPolicy`，需要与内置工具、技能统一。
+6. 阶段 1：分层记忆、混合检索、用户画像、每日简报。
+7. 阶段 2：技能 v2、测试运行器、MCP 发现与权限、流程引擎 v2。
+8. 阶段 3：规划器、子代理、校验器、预算与长任务。
 
-**建议顺序**：P0-4 / P0-5 已完成；接下来做 P0-3（统一工具注册表），后续所有改动提交前都应先跑 `:eval:run`。
+**建议顺序**：P0-4 / P0-5 / P0-6 / P0-7 已完成；接下来做 P0-3（统一工具注册表），后续所有改动提交前都应先跑 `:eval:run`。
 
 ---
 
@@ -255,6 +270,9 @@ debug 广播新增（仅 debug 包）：`dev.xiaoman.debug.ENQUEUE`（走真实�
 | 任务在 UI dump 后失败「无障碍服务未开启」或「屏幕长时间没有变化」 | 同上；任务运行期间避免 `uiautomator`，改用 `ENQUEUE` 等广播 + `queue.json` / `tasks.json` + logcat 验收 |
 | `10.0.2.2:8765` 返回 404 HTML | 端口被遗留的 `python -m http.server` 占了；`netstat -ano \| findstr 8765` 找 PID 停掉，只保留 `fake_llm_server.py` |
 | 顶部「待设置」只在 dump 截图里出现 | 那是服务正被解绑的瞬间快照；用 `screencap`（`adb_ui.py shot`）看是「已就绪」 |
+| OCR 响应解析失败 / 说返回格式非法 | 官方 OCR 响应体前有保活换行符；必须先跳过前导 `\n` 再按 JSON 解析（`DeepSeekToolsClient` 已处理） |
+| 假服务说 ASR 上传的不是 WAV | 别扫请求体前 64 字节——那里只有 multipart 边界和 part 头；要按 `name="file"` 那段取载荷再判 `RIFF` / `WAVE` |
+| 媒体调用打到 `api.deepseek.com` 而不是本地假服务 | `AUTO` 判定只认 `provider.id=deepseek` 或 `chat.model` 以 `deepseek` 开头；联调时把模型名改成假名，或在设置里用「工具端点覆盖」填 `http://10.0.2.2:8765/v1` |
 
 ---
 
@@ -262,18 +280,20 @@ debug 广播新增（仅 debug 包）：`dev.xiaoman.debug.ENQUEUE`（走真实�
 
 **已验证（模拟器，API 35）**
 
-- 构建、单测、lint 全绿；中英文 key 364/364。
+- 构建、单测、lint 全绿；中英文 key 388/388。
 - 排除 `web-server` 的全量回归 `./gradlew test -x :web-server:test :eval:run :app:lintDebug` 通过（193 tasks / 1m47s）；`:eval:run` 15/15 场景通过。`web-server` 的 2 项失败是 P0-4 时已确认的预先存在环境性问题。
 - Dock、聊天、能力、任务、记忆、小满、设置、任务详情、搜索页布局正常；深浅主题、中英文切换、1.3 倍系统字体无溢出；通知渠道 `status / attention / reminders` 已注册并有投递。
 - **端到端（宿主假 LLM 服务，见 §5.6）**：流式聊天与停止、429 重试、队列三任务串行、暂停/继续/取消、断点续跑（checkpoint → `resumed=true` → 从第 1 步之后继续）、Stop 立即取消、任务卡复用与历史去重。
 - 无障碍服务经 secure settings 启用后 `dumpsys accessibility` 显示 `Bound services:{Service[label=小满…]}`。
+- **内置媒体（见 §2.2b）**：`verify_media.py` 四种路由 profile 全 PASS（`model` / `provider` 选中官方端点，`system` 回退 SYSTEM + VISION_MODEL，`forced` 强制官方端点）；三个端点请求形状与解析 12/12 断言通过（ASR 上传约 1.2 s / 37.9 KB RIFF WAV，TTS 返回 7724 B WAV，OCR 版面识别解析 `pages=1`）；UI 实测点麦克风录音 → 上传 → 识别文本回填输入框；设置页「内置能力」卡片渲染完整。
 
 **仍需真实 Key / 真机验收**
 
 - 真实厂商的 SSE 行为与 `/models` 目录（假服务已覆盖协议层，但真实代理的鉴权、限流、图片模态未验）。
+- 真实 DeepSeek 账号下的 `/v1/tools/{asr,tts,ocr}`：音色听感、OCR 版面质量、字符计费与 429 限流（协议层已按官方文档实现，并由假服务覆盖请求形状与解析）。
 - 操作模型在真实屏幕截图上的读屏 / 点击效果（假服务返回的是固定 `finish` / `wait` 动作）。
-- 附件图片发给视觉模型、语音识别结果、TalkBack 完整朗读链路。
-- 真机（非模拟器）上的无障碍权限与后台保活。
+- 附件图片发给视觉模型、系统 `SpeechRecognizer` 的真实识别效果、TalkBack 完整朗读链路。
+- 真机（非模拟器）上的无障碍权限、录音权限与后台保活。
 
 ---
 

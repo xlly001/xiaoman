@@ -521,6 +521,17 @@ interface Verifier {
 
 阶段 0 剩余工作仍是 **P0-3 统一工具注册表**。
 
+### P0-7 内置 TTS / ASR / OCR（已完成）
+
+阶段 4 的「语音对话」提前落地了基础层：语音识别、语音合成、图片文字识别都做成可插拔引擎，并按服务商自动路由。
+
+- 契约：`core-api/Media.kt` 的 `AsrEngine` / `TtsEngine` / `OcrEngine`（纯 Kotlin，不含 Android 类型，`eval/` 可注入假实现）。
+- DeepSeek 默认：DeepSeek 于 2026-11-13 开放全家桶应用 API，提供独立的 `POST /v1/tools/{ocr,asr,tts}`。`provider.id == deepseek` 或 `chat.model` 以 `deepseek` 开头时，`AUTO` 模式直接走官方端点，端点由 `chat.baseUrl` 推导并复用同一个 API Key；其它服务商回退 `SpeechRecognizer` / `TextToSpeech` / 视觉模型 OCR。
+- 客户端：`core-llm/DeepSeekToolsClient.kt` 实现 OCR multipart（跳过响应前导保活换行符后解析 `pages[].text`）、ASR multipart（16 kHz WAV / Opus，≤120 s / 8 MiB）、TTS JSON（`voice_id` / `format` / `filter_markdown` → WAV 或裸 PCM）；8 项单测覆盖形状与错误码。
+- App 侧：`app/media/*` 提供 AUTO 路由、`.tools` 端点覆盖、16 kHz 录音与 WAV 头、WAV/PCM 播放；设置页「内置能力」卡片；聊天页麦克风、附件「识别图中文字」、最终回复整段朗读。
+- 验收：`scripts/e2e/setup_media.py` + `verify_media.py` 在模拟器上验四种路由 profile 与 12 项请求/解析断言；UI 实测录音约 1.2 s（37.9 KB WAV）→ 上传 → 识别文本回填输入框。
+- 仍未做：真实账号的音色听感与计费、连续语音对话、语音唤醒、离线识别。
+
 ### P1-1 记忆分层与混合检索
 
 - `MemoryRecord` + `MemoryKind`；保留 Markdown 作为导出格式。

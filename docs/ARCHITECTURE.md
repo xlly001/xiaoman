@@ -258,6 +258,33 @@ App 注册了 `dev.xiaoman.app.debug.DebugReceiver`（只在 debug 清单中导�
 
 **E2E 工具链坑**：`uiautomator dump` 会临时注册 `UiTestAutomationService`，退出时把 `accessibility_enabled` / `enabled_accessibility_services` 重置为 `0` / `null`，从而解绑小满的无障碍服务。`scripts/e2e/adb_ui.py` 的 `dump()` 在服务原本已启用时自动 `a11y_enable()` 并等待 `dumpsys accessibility` 出现绑定；另外，任务执行期间应改用 `ENQUEUE` 等广播 + `chat/queue.json` / `chat/tasks.json` + logcat 验收，避免读屏任务在解绑窗口失败。
 
+## 内置媒体引擎（TTS / ASR / OCR）
+
+三个能力在 `core-api/Media.kt` 里是纯 Kotlin 契约，和 `LlmClient` 平级：`AsrEngine.transcribe(bytes)` / `listen()` / `cancel()`、`TtsEngine.speak(text, voice)` / `speakToBytes(text, voice)`、`OcrEngine.recognize(bytes, name, purpose)`。录音与播放由引擎自己拥有，`core-api` 不引入 Android 类型，因此 `eval/` 也能塞假实现。
+
+```
+MediaEngineRouter ──┬─ DeepSeekMediaEngines（官方 /v1/tools）
+  (AUTO 路由)        └─ SystemMediaEngines（SpeechRecognizer / TextToSpeech / 视觉模型）
+```
+
+**端点推导**：`DeepSeekToolsClient.toolsRoot(baseUrl)` 把 `https://api.deepseek.com/v1` 换成 `https://api.deepseek.com/v1/tools`；本地联调时 `chat.baseUrl = http://10.0.2.2:8765/v1` 会自然指向假服务的同名端点。API Key 与聊天共用，`media.toolsBaseUrl` 可整体覆盖端点。
+
+**AUTO 判定**（`MediaEngineRouter`）：`media.engineMode = SYSTEM` 强制系统内置；`DEEPSEEK` 强制官方端点；`AUTO` 下只要 `provider.id == "deepseek"` 或 `chat.model` 以 `deepseek` 开头就走官方端点，否则回退系统能力（OCR 走对话模型的视觉通道）。
+
+**官方端点契约**（按 DeepSeek 官方文档实现，`core-llm/DeepSeekToolsClient.kt`）：
+
+| 能力 | 请求 | 响应 |
+|---|---|---|
+| OCR | `multipart/form-data`：`file`（带文件名）、`purpose=text_recognition\|rich_layout_recognition` | JSON `{page_count, pages:[{index,text,finish_reason}]}`，**响应体前有保活换行符**，解析前须跳过前导 `\n` |
+| ASR | `multipart/form-data`：`file` = 16 kHz / 16-bit / 单声道 WAV 或 Ogg Opus（≤120 s / 8 MiB） | `{request_id, text, duration_ms}` |
+| TTS | JSON `{text, voice_id: stella\|tide, format: wav\|pcm, filter_markdown}` | `audio/wav`，或 24 kHz / 16-bit 单声道裸 PCM |
+
+**录音与播放**：`AudioIO` 用 `AudioRecord` 录 16 kHz / 16-bit / 单声道，`WavAudio` 写 44 字节 RIFF 头；播放时先解析 WAV 头把 PCM 交给 `AudioTrack`，裸 PCM 按 24 kHz 处理。系统 TTS 走 Android `TextToSpeech`，系统 ASR 走 `SpeechRecognizer`。
+
+**朗读时机**：只在收到最终 `AgentEvent.Reply` 时整段朗读（`AppGraph` 里订阅 `session.events`），不对 `ReplyDelta` 朗读——流式增量会把同一句话切碎反复合成。
+
+**E2E**：假服务的 `/v1/tools/{ocr,asr,tts}` 复刻官方行为，`verify_media.py` 校验四种路由 profile 与请求形状。注意假服务解析上传文件必须**按 multipart 的 `file` part** 取载荷——直接扫请求体前 64 字节只会看到边界和头部，会把合法 WAV 误判成非 WAV。
+
 ## 模型
 
 任意兼容 OpenAI 接口的服务都可以。需要两组设置：聊天模型和操作（读屏）模型，后者必须支持图片输入。

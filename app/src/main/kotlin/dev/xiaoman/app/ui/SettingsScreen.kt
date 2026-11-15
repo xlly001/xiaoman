@@ -15,6 +15,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
@@ -65,7 +66,10 @@ import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import dev.xiaoman.api.LlmException
+import dev.xiaoman.api.MediaEngineMode
 import dev.xiaoman.api.ModelRole
+import dev.xiaoman.api.OcrPurpose
+import dev.xiaoman.api.TtsVoice
 import dev.xiaoman.app.AppGraph
 import dev.xiaoman.app.BuildConfig
 import dev.xiaoman.app.R
@@ -468,6 +472,112 @@ fun SettingsScreen(graph: AppGraph) {
                         saved = false
                     })
                 }
+            }
+        }
+
+        item {
+            val engines = remember(form, saved) { runCatching { graph.media.current() }.getOrNull() }
+            SettingsCard(title = stringResource(R.string.settings_media_title)) {
+                Text(
+                    stringResource(R.string.settings_media_hint),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                Spacer(Modifier.height(8.dp))
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    MediaEngineMode.entries.forEach { mode ->
+                        FilterChip(
+                            selected = form.mediaEngineMode == mode.name,
+                            onClick = { form = form.copy(mediaEngineMode = mode.name); saved = false },
+                            label = {
+                                Text(
+                                    stringResource(
+                                        when (mode) {
+                                            MediaEngineMode.AUTO -> R.string.settings_media_auto
+                                            MediaEngineMode.DEEPSEEK -> R.string.settings_media_deepseek
+                                            MediaEngineMode.SYSTEM -> R.string.settings_media_system
+                                        },
+                                    ),
+                                )
+                            },
+                        )
+                    }
+                }
+                Spacer(Modifier.height(6.dp))
+                Text(
+                    stringResource(
+                        R.string.settings_media_active,
+                        engines?.asr?.kind?.name ?: "-",
+                        engines?.tts?.kind?.name ?: "-",
+                        engines?.ocr?.kind?.name ?: "-",
+                    ),
+                    style = MaterialTheme.typography.bodySmall,
+                )
+                Text(
+                    stringResource(R.string.settings_media_endpoint, engines?.endpoint ?: "-"),
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                HorizontalDivider(Modifier.padding(vertical = 8.dp))
+                Text(stringResource(R.string.settings_media_voice), style = MaterialTheme.typography.labelLarge)
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    TtsVoice.entries.forEach { voice ->
+                        FilterChip(
+                            selected = form.ttsVoice == voice.name,
+                            onClick = { form = form.copy(ttsVoice = voice.name); saved = false },
+                            label = {
+                                Text(
+                                    stringResource(
+                                        if (voice == TtsVoice.STELLA) R.string.settings_media_voice_stella
+                                        else R.string.settings_media_voice_tide,
+                                    ),
+                                )
+                            },
+                        )
+                    }
+                }
+                Spacer(Modifier.height(6.dp))
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Column(Modifier.weight(1f)) {
+                        Text(stringResource(R.string.settings_media_read_aloud))
+                        Text(
+                            stringResource(R.string.settings_media_read_aloud_hint),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                    Switch(checked = form.readRepliesAloud, onCheckedChange = {
+                        form = form.copy(readRepliesAloud = it)
+                        saved = false
+                    })
+                }
+                Spacer(Modifier.height(6.dp))
+                Text(stringResource(R.string.settings_media_ocr_purpose), style = MaterialTheme.typography.labelLarge)
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    OcrPurpose.entries.forEach { purpose ->
+                        FilterChip(
+                            selected = form.ocrPurpose == purpose.name,
+                            onClick = { form = form.copy(ocrPurpose = purpose.name); saved = false },
+                            label = {
+                                Text(
+                                    stringResource(
+                                        if (purpose == OcrPurpose.TEXT) R.string.settings_media_ocr_text
+                                        else R.string.settings_media_ocr_layout,
+                                    ),
+                                )
+                            },
+                        )
+                    }
+                }
+                Spacer(Modifier.height(8.dp))
+                OutlinedTextField(
+                    value = form.mediaToolsBaseUrl,
+                    onValueChange = { form = form.copy(mediaToolsBaseUrl = it); saved = false },
+                    label = { Text(stringResource(R.string.settings_media_tools_base)) },
+                    supportingText = { Text(stringResource(R.string.settings_media_tools_base_hint)) },
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true,
+                )
             }
         }
 

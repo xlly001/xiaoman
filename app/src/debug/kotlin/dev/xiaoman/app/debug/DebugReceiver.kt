@@ -3,8 +3,12 @@ package dev.xiaoman.app.debug
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
+import android.util.Base64
 import android.util.Log
+import dev.xiaoman.api.OcrPurpose
+import dev.xiaoman.api.TtsVoice
 import dev.xiaoman.app.XiaomanApp
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 /**
@@ -57,6 +61,63 @@ class DebugReceiver : BroadcastReceiver() {
                     Log.i(TAG, "debug: queue row ${row.id} ${row.state} ${row.goal}")
                 }
             }
+            DebugCommand.MediaStatus -> {
+                Log.i(TAG, "debug: media status ${graph.media.current().describe()}")
+            }
+            is DebugCommand.MediaAsr -> {
+                val pending = goAsync()
+                graph.scope.launch {
+                    try {
+                        val engine = graph.media.current().asr
+                        if (command.autoStop) {
+                            launch {
+                                delay(command.millis)
+                                engine.cancel()
+                            }
+                        }
+                        val result = engine.listen()
+                        Log.i(TAG, "debug: media asr engine=${engine.kind} text=${result.text} duration=${result.durationMs} request=${result.requestId}")
+                    } catch (e: Exception) {
+                        Log.w(TAG, "debug: media asr failed ${e.javaClass.simpleName}: ${e.message}")
+                    } finally {
+                        pending.finish()
+                    }
+                }
+            }
+            is DebugCommand.MediaTts -> {
+                val pending = goAsync()
+                graph.scope.launch {
+                    try {
+                        val engine = graph.media.current().tts
+                        val fallback = graph.settings.current.ttsVoice
+                        val voice = if (command.voice.isBlank()) fallback
+                        else runCatching { TtsVoice.valueOf(command.voice.uppercase()) }.getOrDefault(fallback)
+                        val result = engine.speak(command.text, voice)
+                        Log.i(TAG, "debug: media tts engine=${engine.kind} bytes=${result.audioBytes} voice=${result.voice}")
+                    } catch (e: Exception) {
+                        Log.w(TAG, "debug: media tts failed ${e.javaClass.simpleName}: ${e.message}")
+                    } finally {
+                        pending.finish()
+                    }
+                }
+            }
+            is DebugCommand.MediaOcr -> {
+                val pending = goAsync()
+                graph.scope.launch {
+                    try {
+                        val engine = graph.media.current().ocr
+                        val fallback = graph.settings.current.ocrPurpose
+                        val purpose = if (command.purpose.isBlank()) fallback
+                        else runCatching { OcrPurpose.valueOf(command.purpose.uppercase()) }.getOrDefault(fallback)
+                        val result = engine.recognize(E2E_PNG, "e2e.png", purpose)
+                        Log.i(TAG, "debug: media ocr engine=${engine.kind} pages=${result.pages.size} text=${result.text.take(120)}")
+                    } catch (e: Exception) {
+                        Log.w(TAG, "debug: media ocr failed ${e.javaClass.simpleName}: ${e.message}")
+                    } finally {
+                        pending.finish()
+                    }
+                }
+            }
             DebugCommand.ReloadSkills -> {
                 val pending = goAsync()
                 graph.scope.launch {
@@ -76,5 +137,11 @@ class DebugReceiver : BroadcastReceiver() {
 
     private companion object {
         const val TAG = "Xiaoman"
+
+        /** A real 1x1 PNG so the OCR multipart upload carries an actual image, not arbitrary bytes. */
+        val E2E_PNG: ByteArray = Base64.decode(
+            "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==",
+            Base64.DEFAULT,
+        )
     }
 }

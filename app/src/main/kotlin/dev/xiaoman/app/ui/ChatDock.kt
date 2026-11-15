@@ -1,12 +1,15 @@
 package dev.xiaoman.app.ui
 
+import android.Manifest
 import android.content.Context
+import android.content.pm.PackageManager
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.net.Uri
 import android.provider.OpenableColumns
 import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.core.content.ContextCompat
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.animateColorAsState
@@ -48,11 +51,11 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -68,9 +71,11 @@ import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import dev.xiaoman.api.MediaException
 import dev.xiaoman.app.AppGraph
 import dev.xiaoman.app.R
 import dev.xiaoman.app.session.AgentSession
+import kotlinx.coroutines.launch
 import java.io.ByteArrayOutputStream
 
 /** Height the merged composer + navigation dock occupies, including margins. */
@@ -129,18 +134,69 @@ fun ChatDock(
 
     fun imageBytes(): List<ByteArray> = attachments.mapNotNull { it.bytes }
 
-    val voice = rememberVoiceInput { recognized ->
+    val scope = rememberCoroutineScope()
+    var asrListening by remember { mutableStateOf(false) }
+    var ocrWorking by remember { mutableStateOf(false) }
+
+    fun applyTranscript(recognized: String) {
         val message = if (draft.isBlank()) recognized else draft.trimEnd() + " " + recognized
-        if (settings.voiceAutoSend) {
-            send(message, imageBytes())
-        } else {
-            onDraftChange(message)
+        if (settings.voiceAutoSend) send(message, imageBytes()) else onDraftChange(message)
+    }
+
+    fun startListening() {
+        asrListening = true
+        scope.launch {
+            try {
+                // AUTO routes DeepSeek providers to /v1/tools/asr and everything else to the
+                // platform recognizer; both engines own microphone capture internally.
+                applyTranscript(graph.media.current().asr.listen().text)
+            } catch (e: MediaException) {
+                Toast.makeText(context, context.getString(R.string.media_asr_error, e.message.orEmpty()), Toast.LENGTH_LONG).show()
+            } catch (e: Exception) {
+                Toast.makeText(context, context.getString(R.string.media_asr_error, e.message.orEmpty()), Toast.LENGTH_LONG).show()
+            } finally {
+                asrListening = false
+            }
         }
     }
-    LaunchedEffect(voice.errorRes) {
-        voice.errorRes?.let {
-            Toast.makeText(context, context.getString(it), Toast.LENGTH_SHORT).show()
-            voice.clearError()
+
+    val recordPermission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+        if (granted) {
+            startListening()
+        } else {
+            Toast.makeText(context, R.string.voice_permission_denied, Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    fun onMicClick() {
+        if (asrListening) {
+            // Second tap finishes the recording; the clip captured so far is still transcribed.
+            graph.media.current().asr.cancel()
+            return
+        }
+        val granted = ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED
+        if (granted) startListening() else recordPermission.launch(Manifest.permission.RECORD_AUDIO)
+    }
+
+    /** Picks an image and pastes the recognized text into the composer instead of sending it as an attachment. */
+    val ocrPicker = rememberLauncherForActivityResult(ActivityResultContracts.PickVisualMedia()) { uri ->
+        uri ?: return@rememberLauncherForActivityResult
+        val bytes = loadImage(context, uri)
+        if (bytes == null) {
+            Toast.makeText(context, R.string.attach_image_failed, Toast.LENGTH_SHORT).show()
+            return@rememberLauncherForActivityResult
+        }
+        ocrWorking = true
+        scope.launch {
+            try {
+                val result = graph.media.current().ocr.recognize(bytes, "image.png", settings.ocrPurpose)
+                val prefix = if (draft.isBlank()) "" else draft.trimEnd() + "\n\n"
+                onDraftChange(prefix + result.text)
+            } catch (e: Exception) {
+                Toast.makeText(context, context.getString(R.string.media_ocr_error, e.message.orEmpty()), Toast.LENGTH_LONG).show()
+            } finally {
+                ocrWorking = false
+            }
         }
     }
 
@@ -245,6 +301,14 @@ fun ChatDock(
                                 files.launch(arrayOf("text/*", "application/json", "application/xml"))
                             },
                         )
+                        DropdownMenuItem(
+                            text = { Text(stringResource(R.string.media_ocr_action)) },
+                            leadingIcon = { Icon(Icons.Filled.AttachFile, contentDescription = null) },
+                            onClick = {
+                                addMenu = false
+                                ocrPicker.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))
+                            },
+                        )
                     }
                 }
                 BasicTextField(
@@ -262,7 +326,8 @@ fun ChatDock(
                                 Text(
                                     stringResource(
                                         when {
-                                            voice.listening -> R.string.chat_listening
+                                            asrListening -> R.string.chat_listening
+                                            ocrWorking -> R.string.media_ocr_running
                                             activeTaskId != null -> R.string.chat_thread_hint
                                             question != null -> R.string.chat_answer_hint
                                             else -> R.string.chat_input_hint
@@ -279,7 +344,10 @@ fun ChatDock(
                     },
                 )
                 if (busy && question == null) {
-                    IconButton(onClick = session::stop, modifier = Modifier.size(38.dp)) {
+                    IconButton(onClick = {
+                        session.stop()
+                        graph.media.current().tts.stop()
+                    }, modifier = Modifier.size(38.dp)) {
                         Icon(
                             Icons.Filled.Stop,
                             contentDescription = stringResource(R.string.chat_stop),
@@ -302,14 +370,14 @@ fun ChatDock(
                         }
                     }
                     IconButton(
-                        onClick = { if (voice.listening) voice.stop() else voice.start() },
-                        enabled = !busy || question != null,
+                        onClick = { onMicClick() },
+                        enabled = (!busy || question != null) && !ocrWorking,
                         modifier = Modifier.size(38.dp),
                     ) {
                         Icon(
-                            if (voice.listening) Icons.Filled.Stop else Icons.Filled.Mic,
-                            contentDescription = stringResource(if (voice.listening) R.string.chat_stop_listening else R.string.chat_mic),
-                            tint = if (voice.listening) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+                            if (asrListening) Icons.Filled.Stop else Icons.Filled.Mic,
+                            contentDescription = stringResource(if (asrListening) R.string.media_asr_stop else R.string.media_asr_start),
+                            tint = if (asrListening) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
                             modifier = Modifier.size(21.dp),
                         )
                     }

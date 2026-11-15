@@ -64,6 +64,31 @@ class DebugCommandTest {
         assertEquals(DebugCommand.QueueStatus, parse("dev.xiaoman.debug.QUEUE_STATUS"))
     }
 
+    @Test fun `media actions parse their extras`() {
+        assertEquals(DebugCommand.MediaStatus, parse("dev.xiaoman.debug.MEDIA_STATUS"))
+        assertEquals(
+            DebugCommand.MediaAsr(autoStop = true, millis = 1_200L),
+            parse("dev.xiaoman.debug.MEDIA_ASR"),
+        )
+        assertEquals(
+            DebugCommand.MediaAsr(autoStop = false, millis = 2_000L),
+            parse("dev.xiaoman.debug.MEDIA_ASR", "auto_stop" to "false", "millis" to "2000"),
+        )
+        assertEquals(
+            DebugCommand.MediaAsr(autoStop = true, millis = 200L),
+            parse("dev.xiaoman.debug.MEDIA_ASR", "millis" to "1"),
+        )
+        assertEquals(
+            DebugCommand.MediaTts("你好", "tide"),
+            parse("dev.xiaoman.debug.MEDIA_TTS", "text" to " 你好 ", "voice" to "tide"),
+        )
+        assertNull(parse("dev.xiaoman.debug.MEDIA_TTS", "text" to "  "))
+        assertEquals(
+            DebugCommand.MediaOcr("RICH_LAYOUT"),
+            parse("dev.xiaoman.debug.MEDIA_OCR", "purpose" to "RICH_LAYOUT"),
+        )
+    }
+
     @Test fun `stop reload and unknown actions`() {
         assertEquals(DebugCommand.Stop, parse("dev.xiaoman.debug.STOP"))
         assertEquals(DebugCommand.ReloadSkills, parse("dev.xiaoman.debug.RELOAD_SKILLS"))

@@ -1,8 +1,11 @@
 package dev.xiaoman.app.settings
 
 import dev.xiaoman.api.AgentConfig
+import dev.xiaoman.api.MediaEngineMode
 import dev.xiaoman.api.ModelConfig
 import dev.xiaoman.api.ModelRole
+import dev.xiaoman.api.OcrPurpose
+import dev.xiaoman.api.TtsVoice
 
 /** One OpenAI-compatible endpoint as typed into Settings. [toString] never shows [apiKey]. */
 data class ModelSettings(
@@ -55,6 +58,16 @@ data class AppSettings(
     val requestTimeoutSeconds: Int = 120,
     val notificationsEnabled: Boolean = true,
     val chatHistoryLimit: Int = 500,
+    /** Which implementation serves the built-in ASR / TTS / OCR capabilities. */
+    val mediaEngineMode: MediaEngineMode = MediaEngineMode.AUTO,
+    /** Optional override for the DeepSeek tools base URL; blank derives it from [chat].baseUrl. */
+    val mediaToolsBaseUrl: String = "",
+    /** Voice used by DeepSeek TTS; the system engine ignores it. */
+    val ttsVoice: TtsVoice = TtsVoice.STELLA,
+    /** Speak the final assistant reply when it arrives. */
+    val readRepliesAloud: Boolean = false,
+    /** `purpose` sent to /v1/tools/ocr. */
+    val ocrPurpose: OcrPurpose = OcrPurpose.TEXT,
 ) {
     val configured: Boolean get() = chat.configured && operator.configured
 
@@ -92,6 +105,11 @@ data class SettingsForm(
     val requestTimeout: String = "120",
     val notificationsEnabled: Boolean = true,
     val chatHistoryLimit: String = "500",
+    val mediaEngineMode: String = MediaEngineMode.AUTO.name,
+    val mediaToolsBaseUrl: String = "",
+    val ttsVoice: String = TtsVoice.STELLA.name,
+    val readRepliesAloud: Boolean = false,
+    val ocrPurpose: String = OcrPurpose.TEXT.name,
 ) {
     data class ModelForm(
         val baseUrl: String = ModelSettings.DEFAULT_BASE_URL,
@@ -156,6 +174,11 @@ data class SettingsForm(
             requestTimeoutSeconds = timeout,
             notificationsEnabled = notificationsEnabled,
             chatHistoryLimit = historyLimit,
+            mediaEngineMode = enumValue(mediaEngineMode, MediaEngineMode.AUTO),
+            mediaToolsBaseUrl = mediaToolsBaseUrl.trim(),
+            ttsVoice = enumValue(ttsVoice, TtsVoice.STELLA),
+            readRepliesAloud = readRepliesAloud,
+            ocrPurpose = enumValue(ocrPurpose, OcrPurpose.TEXT),
         )
     }
 
@@ -173,8 +196,16 @@ data class SettingsForm(
             requestTimeout = s.requestTimeoutSeconds.toString(),
             notificationsEnabled = s.notificationsEnabled,
             chatHistoryLimit = s.chatHistoryLimit.toString(),
+            mediaEngineMode = s.mediaEngineMode.name,
+            mediaToolsBaseUrl = s.mediaToolsBaseUrl,
+            ttsVoice = s.ttsVoice.name,
+            readRepliesAloud = s.readRepliesAloud,
+            ocrPurpose = s.ocrPurpose.name,
         )
 
         fun parseTemperature(text: String): Double? = text.trim().toDoubleOrNull()?.takeIf { it in 0.0..2.0 }
+
+        private inline fun <reified T : Enum<T>> enumValue(raw: String, fallback: T): T =
+            runCatching { enumValueOf<T>(raw.trim()) }.getOrDefault(fallback)
     }
 }

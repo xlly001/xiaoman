@@ -404,4 +404,30 @@
     <string name="memory_save">保存</string>
     <string name="memory_invalid">标题不能为空。</string>
     <string name="memory_edit_hint">可以直接改 Markdown。保存后会按 Basic Memory 格式重新写入。</string>
+
+    <!-- Built-in media capabilities: ASR / TTS / OCR -->
+    <string name="settings_media_title">内置能力</string>
+    <string name="settings_media_hint">语音识别、语音合成、图片文字识别。使用 DeepSeek 模型时默认调用 DeepSeek 官方 /v1/tools 接口，共用当前 API Key。</string>
+    <string name="settings_media_auto">跟随服务商</string>
+    <string name="settings_media_deepseek">DeepSeek 官方</string>
+    <string name="settings_media_system">系统内置</string>
+    <string name="settings_media_active">当前引擎：ASR %1$s · TTS %2$s · OCR %3$s</string>
+    <string name="settings_media_endpoint">工具端点：%1$s</string>
+    <string name="settings_media_voice">朗读音色</string>
+    <string name="settings_media_voice_stella">海星（女声）</string>
+    <string name="settings_media_voice_tide">暗潮（男声）</string>
+    <string name="settings_media_read_aloud">自动朗读回复</string>
+    <string name="settings_media_read_aloud_hint">回复完成后用内置 TTS 完整播报</string>
+    <string name="settings_media_ocr_purpose">OCR 识别模式</string>
+    <string name="settings_media_ocr_text">纯文字</string>
+    <string name="settings_media_ocr_layout">版面识别</string>
+    <string name="settings_media_tools_base">工具端点覆盖（可选）</string>
+    <string name="settings_media_tools_base_hint">留空则从模型服务地址推导；本地联调可填 http://10.0.2.2:8765/v1</string>
+    <string name="media_asr_start">开始录音</string>
+    <string name="media_asr_stop">停止并识别</string>
+    <string name="media_asr_error">语音识别失败：%1$s</string>
+    <string name="media_ocr_action">识别图中文字</string>
+    <string name="media_ocr_running">正在识别图中文字…</string>
+    <string name="media_ocr_error">文字识别失败：%1$s</string>
+    <string name="media_tts_error">朗读失败：%1$s</string>
 </resources>

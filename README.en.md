@@ -66,8 +66,16 @@ wash, white rounded cards and one-piece bottom dock of the reference app:
   tasks and memory updates (`diary/diary.json`).
 - **Quick commands**: six default cards (notebook, water reminder, preference, parcel tracking,
   daily summary, translate) and up to eight editable shortcuts; tapping one fills the dock composer.
-- **Voice input**: the dock microphone uses the system speech recognizer; recording permission and
+- **Voice input**: the dock microphone goes through the built-in ASR engine; recording permission and
   recognizer failures produce readable messages.
+- **Built-in TTS / ASR / OCR**: all three are pluggable engines (`core-api/Media.kt`). **With a DeepSeek
+  model they default to the official `/v1/tools/{asr,tts,ocr}` endpoints**, derived from the chat base
+  URL and sharing the same API key; other providers fall back to the platform engines
+  (`SpeechRecognizer`, Android `TextToSpeech`, vision-model OCR). Settings can also pin “DeepSeek” or
+  “System”. The chat dock offers microphone recording, an “Extract text from image” attachment action
+  that pastes the result into the composer instead of sending it, and a “Read replies aloud” toggle that
+  speaks the final reply once (never the streaming deltas). Voices are `stella` / `tide`; OCR can run in
+  plain-text or rich-layout mode.
 - **Human-friendly model setup**: pick a provider (Volcano Ark, OpenAI, DeepSeek, Alibaba Bailian,
   Zhipu, Kimi, SiliconFlow, OpenRouter or custom), enter one key, and tap “Fetch available models” to
   read the provider’s `/models`. Provider metadata (context window, max output, image modality) is used
@@ -96,7 +104,7 @@ wash, white rounded cards and one-piece bottom dock of the reference app:
   The Memory screen can create, edit and delete notes.
 - **Internationalization**: every new UI string lives in resources, with Chinese in
   `app/src/main/res/values/strings.xml` and English in `values-en/strings.xml`; both files currently
-  hold 364 matching keys, and the app language can be switched in Settings.
+  hold 388 matching keys, and the app language can be switched in Settings.
 - **Streaming replies**: chat replies stream over SSE (OpenAI-compatible `/chat/completions` `stream`);
   text appears incrementally with auto-scroll and can be stopped mid-flight. Tool-call fragments are
   accumulated per index into complete calls. The draft bubble updates in memory only and is not written to
@@ -151,6 +159,23 @@ python scripts/e2e/adb_ui.py dump          # locate Compose nodes by text / cont
 - Debug broadcasts (debug builds only): `dev.xiaoman.debug.ENQUEUE` (`--es goal`),
   `QUEUE_PAUSE` / `QUEUE_RESUME` / `QUEUE_CANCEL` (`--es id`), `QUEUE_STATUS`. Queue state can also
   be read directly from `chat/queue.json` and `chat/tasks.json`.
+
+### Checking the built-in TTS / ASR / OCR
+
+```bash
+python scripts/e2e/setup_media.py --profile model    # also provider / system / forced
+python scripts/e2e/verify_media.py                   # routing + three endpoints + parsing
+```
+
+- `setup_media.py` flips four routing profiles via `settings.xml`: `model` (`chat.model=deepseek-*`),
+  `provider` (`provider.id=deepseek`), `system` (platform fallback) and `forced` (official endpoints
+  even under a non-DeepSeek provider).
+- `verify_media.py` first asserts each profile picks the right engine and endpoint, then triggers
+  `MEDIA_ASR/TTS/OCR` for real and checks the request shapes the fake server received (the ASR `file`
+  part must be RIFF/WAVE with real audio length, TTS `voice_id`/`format`, OCR `purpose`) plus the
+  app-side parse results — 12 assertions in total.
+- The fake server's `/v1/tools/{ocr,asr,tts}` mirror the official behaviour: OCR keeps the leading
+  keep-alive newlines, ASR returns `request_id/text/duration_ms`, TTS returns a playable WAV.
 
 > Avoid `uiautomator dump` while a task is running: unbinding the service makes a screen-reading
 > step fail with "accessibility service not enabled". Prefer broadcasts + files + logcat for

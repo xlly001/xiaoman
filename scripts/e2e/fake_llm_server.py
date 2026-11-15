@@ -10,6 +10,9 @@ model, and lets a test script change its behaviour over HTTP while it is running
 Endpoints
     GET  /v1/models            model list (first chat model + first vision model)
     POST /v1/chat/completions  SSE stream or a single JSON response
+    POST /v1/tools/ocr         DeepSeek-compatible multipart OCR (newline keep-alive + pages)
+    POST /v1/tools/asr         DeepSeek-compatible multipart speech-to-text
+    POST /v1/tools/tts         DeepSeek-compatible JSON text-to-speech (returns WAV bytes)
     GET  /control              current behaviour
     POST /control              update behaviour with a JSON object
     POST /control/reset        restore defaults and clear the request log
@@ -32,6 +35,10 @@ Control fields (all optional, POST /control merges them)
     finish_reason         default "stop"
     usage                 dict merged into the usage object
     force_role            "chat" | "operator" (skip auto detection)
+    asr_text              transcript returned by /v1/tools/asr
+    ocr_text              page text returned by /v1/tools/ocr
+    tts_duration_ms       length of the silent WAV returned by /v1/tools/tts
+    tools_error_code      HTTP status to return from all /v1/tools/* calls (0 disables)
 
 The request log is written as UTF-8 JSONL when --log-file is given. API keys are
 redacted before anything is logged.
@@ -81,6 +88,11 @@ DEFAULTS: dict[str, Any] = {
     # Keep the socket open after `data: [DONE]` to reproduce providers that do
     # not close the SSE connection. A client that waits for EOF will hang here.
     "hold_after_done_ms": 0,
+    # Standalone DeepSeek tools API fixtures.
+    "asr_text": "打开设置并查看电池",
+    "ocr_text": "小满 E2E 图片文字\n第二行",
+    "tts_duration_ms": 160,
+    "tools_error_code": 0,
 }
 
 STATE: dict[str, Any] = dict(DEFAULTS)
@@ -170,6 +182,44 @@ def tool_call_objects(calls: list[dict[str, Any]]) -> list[dict[str, Any]]:
     ]
 
 
+def silent_wav(duration_ms: int, sample_rate: int = 24_000) -> bytes:
+    """A canonical 44-byte RIFF/WAVE header plus silent 16-bit mono PCM.
+
+    The app parses this header before handing the PCM to AudioTrack, so the fake
+    TTS endpoint must return a genuinely playable WAV rather than arbitrary bytes.
+    """
+    frames = max(1, int(sample_rate * max(1, duration_ms) / 1000))
+    pcm = b"\x00\x00" * frames
+    byte_rate = sample_rate * 2
+    header = (
+        b"RIFF" + (36 + len(pcm)).to_bytes(4, "little") + b"WAVE" +
+        b"fmt " + (16).to_bytes(4, "little") + (1).to_bytes(2, "little") +
+        (1).to_bytes(2, "little") + sample_rate.to_bytes(4, "little") +
+        byte_rate.to_bytes(4, "little") + (2).to_bytes(2, "little") +
+        (16).to_bytes(2, "little") +
+        b"data" + len(pcm).to_bytes(4, "little")
+    )
+    return header + pcm
+
+
+def _file_part(raw: bytes) -> bytes:
+    """Return the payload of the multipart part named ``file``.
+
+    The body starts with a boundary line and the part headers, so the uploaded
+    file's own signature never appears near offset 0; helpers that sniff content
+    must work on this slice instead of the raw request body.
+    """
+    marker = raw.find(b'name="file"')
+    if marker < 0:
+        return b""
+    start = raw.find(b"\r\n\r\n", marker)
+    if start < 0:
+        return b""
+    start += 4
+    end = raw.find(b"\r\n--", start)
+    return raw[start:] if end < 0 else raw[start:end]
+
+
 class Handler(BaseHTTPRequestHandler):
     protocol_version = "HTTP/1.1"
     server_version = "XiaomanFakeLLM/1.0"
@@ -202,6 +252,27 @@ class Handler(BaseHTTPRequestHandler):
     def _read_body(self) -> bytes:
         length = int(self.headers.get("Content-Length", "0") or "0")
         return self.rfile.read(length) if length else b""
+
+    def _raw(self, status: int, body: bytes | str, content_type: str) -> None:
+        payload = body.encode("utf-8") if isinstance(body, str) else body
+        self.send_response(status)
+        self.send_header("Content-Type", content_type)
+        self.send_header("Content-Length", str(len(payload)))
+        self.end_headers()
+        self.wfile.write(payload)
+        self.wfile.flush()
+
+    def _tools_entry(self, path: str, raw: bytes, **fields: Any) -> dict[str, Any]:
+        entry: dict[str, Any] = {
+            "ts": round(time.time(), 3),
+            "method": self.command,
+            "path": path,
+            "content_type": self.headers.get("Content-Type", ""),
+            "bytes": len(raw),
+            "authorization": "Bearer ***" if self.headers.get("Authorization") else None,
+        }
+        entry.update(fields)
+        return entry
 
     def _entry(self, path: str, body: dict[str, Any] | None) -> dict[str, Any]:
         return {
@@ -258,10 +329,81 @@ class Handler(BaseHTTPRequestHandler):
             except KeyError as exc:
                 return self._json(400, {"error": {"message": f"unknown control field {exc}"}})
 
+        if path in ("/v1/tools/ocr", "/tools/ocr"):
+            return self._tools_ocr(path, raw)
+        if path in ("/v1/tools/asr", "/tools/asr"):
+            return self._tools_asr(path, raw)
+        if path in ("/v1/tools/tts", "/tools/tts"):
+            return self._tools_tts(path, raw, body)
+
         if path in ("/v1/chat/completions", "/chat/completions"):
             return self._chat(path, body)
 
         return self._json(404, {"error": {"message": "not found", "path": path}})
+
+    # -------------------------------------------------------------- tools logic
+    def _tools_error(self, cfg: dict[str, Any]) -> bool:
+        code = int(cfg["tools_error_code"] or 0)
+        if not code:
+            return False
+        self._json(code, {"error": {"message": "E2E injected tools failure"}})
+        return True
+
+    def _tools_asr(self, path: str, raw: bytes) -> None:
+        cfg = snapshot()
+        payload = _file_part(raw)
+        record(self._tools_entry(
+            path, raw,
+            tool="asr",
+            has_file_part=b'name="file"' in raw,
+            # A real WAV starts with "RIFF....WAVE"; the upload is a multipart body,
+            # so the signature lives in the file part, not in the first bytes.
+            riff=payload[:4] == b"RIFF" and payload[8:12] == b"WAVE",
+            audio_bytes=len(payload),
+        ))
+        if self._tools_error(cfg):
+            return
+        self._json(200, {
+            "request_id": "asr-e2e-1",
+            "text": cfg["asr_text"],
+            "duration_ms": 1200,
+        })
+
+    def _tools_ocr(self, path: str, raw: bytes) -> None:
+        cfg = snapshot()
+        purpose = "rich_layout_recognition" if b"rich_layout_recognition" in raw else "text_recognition"
+        record(self._tools_entry(
+            path, raw,
+            tool="ocr",
+            has_file_part=b'name="file"' in raw,
+            purpose=purpose,
+        ))
+        if self._tools_error(cfg):
+            return
+        payload = "\n\n" + json.dumps({
+            "id": "ocr-e2e-1",
+            "object": "ocr.result",
+            "created": int(time.time()),
+            "purpose": purpose,
+            "page_count": 1,
+            "pages": [{"index": 0, "text": cfg["ocr_text"], "finish_reason": "stop"}],
+        }, ensure_ascii=False)
+        # The real service sends newline keep-alives ahead of the JSON object.
+        self._raw(200, payload, "application/json; charset=utf-8")
+
+    def _tools_tts(self, path: str, raw: bytes, body: dict[str, Any]) -> None:
+        cfg = snapshot()
+        record(self._tools_entry(
+            path, raw,
+            tool="tts",
+            text=str(body.get("text", ""))[:200],
+            voice_id=body.get("voice_id"),
+            format=body.get("format"),
+            filter_markdown=body.get("filter_markdown"),
+        ))
+        if self._tools_error(cfg):
+            return
+        self._raw(200, silent_wav(int(cfg["tts_duration_ms"] or 160)), "audio/wav")
 
     # --------------------------------------------------------------- chat logic
     def _chat(self, path: str, body: dict[str, Any]) -> None:

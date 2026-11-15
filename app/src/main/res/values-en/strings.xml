@@ -404,4 +404,30 @@
     <string name="memory_save">Save</string>
     <string name="memory_invalid">A title is required.</string>
     <string name="memory_edit_hint">You can edit the Markdown directly. Saving rewrites the note in Basic Memory format.</string>
+
+    <!-- Built-in media capabilities: ASR / TTS / OCR -->
+    <string name="settings_media_title">Built-in media</string>
+    <string name="settings_media_hint">Speech recognition, speech synthesis and image OCR. DeepSeek models use the official /v1/tools endpoints by default, sharing the current API key.</string>
+    <string name="settings_media_auto">Follow provider</string>
+    <string name="settings_media_deepseek">DeepSeek</string>
+    <string name="settings_media_system">System</string>
+    <string name="settings_media_active">Active engines: ASR %1$s · TTS %2$s · OCR %3$s</string>
+    <string name="settings_media_endpoint">Tools endpoint: %1$s</string>
+    <string name="settings_media_voice">Read-aloud voice</string>
+    <string name="settings_media_voice_stella">Stella (female)</string>
+    <string name="settings_media_voice_tide">Tide (male)</string>
+    <string name="settings_media_read_aloud">Read replies aloud</string>
+    <string name="settings_media_read_aloud_hint">Speak the complete reply with the built-in TTS engine</string>
+    <string name="settings_media_ocr_purpose">OCR mode</string>
+    <string name="settings_media_ocr_text">Plain text</string>
+    <string name="settings_media_ocr_layout">Rich layout</string>
+    <string name="settings_media_tools_base">Tools base URL override (optional)</string>
+    <string name="settings_media_tools_base_hint">Blank derives it from the model base URL; for local E2E use http://10.0.2.2:8765/v1</string>
+    <string name="media_asr_start">Start recording</string>
+    <string name="media_asr_stop">Stop and transcribe</string>
+    <string name="media_asr_error">Speech recognition failed: %1$s</string>
+    <string name="media_ocr_action">Extract text from image</string>
+    <string name="media_ocr_running">Extracting text from image…</string>
+    <string name="media_ocr_error">Text recognition failed: %1$s</string>
+    <string name="media_tts_error">Read-aloud failed: %1$s</string>
 </resources>

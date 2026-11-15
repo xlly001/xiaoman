@@ -6,6 +6,9 @@ import android.util.Log
 import androidx.core.content.edit
 import androidx.security.crypto.EncryptedSharedPreferences
 import androidx.security.crypto.MasterKey
+import dev.xiaoman.api.MediaEngineMode
+import dev.xiaoman.api.OcrPurpose
+import dev.xiaoman.api.TtsVoice
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -38,6 +41,11 @@ class SettingsStore(private val plain: SharedPreferences, internal val secret: S
             putInt(REQUEST_TIMEOUT, settings.requestTimeoutSeconds)
             putBoolean(NOTIFICATIONS_ENABLED, settings.notificationsEnabled)
             putInt(CHAT_HISTORY_LIMIT, settings.chatHistoryLimit)
+            putString(MEDIA_MODE, settings.mediaEngineMode.name)
+            putString(MEDIA_TOOLS_BASE, settings.mediaToolsBaseUrl)
+            putString(MEDIA_TTS_VOICE, settings.ttsVoice.name)
+            putBoolean(MEDIA_READ_ALOUD, settings.readRepliesAloud)
+            putString(MEDIA_OCR_PURPOSE, settings.ocrPurpose.name)
         }
         secret.edit(commit = true) {
             putString(CHAT + API_KEY, settings.chat.apiKey)
@@ -70,8 +78,16 @@ class SettingsStore(private val plain: SharedPreferences, internal val secret: S
             requestTimeoutSeconds = timeout,
             notificationsEnabled = plain.getBoolean(NOTIFICATIONS_ENABLED, defaults.notificationsEnabled),
             chatHistoryLimit = plain.getInt(CHAT_HISTORY_LIMIT, defaults.chatHistoryLimit),
+            mediaEngineMode = enumPref(MEDIA_MODE, defaults.mediaEngineMode, MediaEngineMode::valueOf),
+            mediaToolsBaseUrl = plain.getString(MEDIA_TOOLS_BASE, null).orEmpty(),
+            ttsVoice = enumPref(MEDIA_TTS_VOICE, defaults.ttsVoice, TtsVoice::valueOf),
+            readRepliesAloud = plain.getBoolean(MEDIA_READ_ALOUD, defaults.readRepliesAloud),
+            ocrPurpose = enumPref(MEDIA_OCR_PURPOSE, defaults.ocrPurpose, OcrPurpose::valueOf),
         )
     }
+
+    private fun <T : Enum<T>> enumPref(key: String, fallback: T, parse: (String) -> T): T =
+        plain.getString(key, null)?.let { runCatching { parse(it) }.getOrNull() } ?: fallback
 
     private fun seedProfiles(chat: ModelSettings, operator: ModelSettings): List<ModelProfile> = buildList {
         if (chat.model.isNotBlank()) {
@@ -146,6 +162,11 @@ class SettingsStore(private val plain: SharedPreferences, internal val secret: S
         private const val CHAT_HISTORY_LIMIT = "chat.historyLimit"
         private const val MAX_STEPS = "agent.maxSteps"
         private const val LEARN = "agent.learnFromSuccess"
+        private const val MEDIA_MODE = "media.engineMode"
+        private const val MEDIA_TOOLS_BASE = "media.toolsBaseUrl"
+        private const val MEDIA_TTS_VOICE = "media.ttsVoice"
+        private const val MEDIA_READ_ALOUD = "media.readRepliesAloud"
+        private const val MEDIA_OCR_PURPOSE = "media.ocrPurpose"
         private val json = Json { ignoreUnknownKeys = true; encodeDefaults = true }
 
         fun create(context: Context): SettingsStore =
