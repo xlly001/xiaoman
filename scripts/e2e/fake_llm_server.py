@@ -178,6 +178,15 @@ class Handler(BaseHTTPRequestHandler):
         # Keep stdout quiet; /log is the structured source of truth.
         pass
 
+    def handle(self) -> None:
+        try:
+            super().handle()
+        except (ConnectionError, OSError):
+            # Stopping a task makes the app cancel its in-flight request, so the
+            # socket can disappear while we are writing the reply. Expected: do
+            # not let socketserver dump a traceback for a normal Stop.
+            pass
+
     # ------------------------------------------------------------------ helpers
     def _json(self, status: int, payload: Any, extra_headers: dict[str, str] | None = None) -> None:
         raw = json.dumps(payload, ensure_ascii=False).encode("utf-8")
