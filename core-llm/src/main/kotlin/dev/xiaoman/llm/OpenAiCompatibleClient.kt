@@ -205,7 +205,11 @@ class OpenAiCompatibleClient(
                 }
                 if (!trimmed.startsWith("data:")) continue
                 val data = trimmed.removePrefix("data:").trim()
-                if (data == "[DONE]") continue
+                // `[DONE]` is the protocol's end-of-stream marker. Stop here instead of
+                // waiting for EOF: many OpenAI-compatible proxies keep the socket open
+                // (HTTP/1.1 keep-alive with no Content-Length), which would otherwise
+                // leave the reply spinning until the read timeout expires.
+                if (data == "[DONE]") break
                 val root = runCatching { json.parseToJsonElement(data) }.getOrNull() as? JsonObject ?: continue
                 val choice = (root["choices"] as? JsonArray)?.firstOrNull() as? JsonObject
                 if (choice != null) {

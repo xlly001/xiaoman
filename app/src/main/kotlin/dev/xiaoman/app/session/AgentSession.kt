@@ -14,6 +14,7 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.channels.BufferOverflow
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -85,7 +86,18 @@ class AgentSession(
     // Load with the absolute cap instead of reading Settings here: the session is built during
     // Application.onCreate, and settings live behind EncryptedSharedPreferences. The live
     // [historyLimit] still applies on every append/save, so lowering the cap trims the file.
-    private val restored = history?.load(limit = 2_000).orEmpty()
+    private val restored = history?.load(limit = 2_000).orEmpty().let { loaded ->
+        // Older builds added a second card when a task resumed after a process restart,
+        // leaving the original stuck at "进行中". Collapse duplicates to the newest card.
+        val newestByTask = HashMap<String, Long>()
+        loaded.filterIsInstance<ChatItem.TaskEntry>().forEach { entry ->
+            newestByTask[entry.taskId] = maxOf(newestByTask[entry.taskId] ?: 0L, entry.id)
+        }
+        loaded.filter { item ->
+            val entry = item as? ChatItem.TaskEntry
+            entry == null || newestByTask[entry.taskId] == entry.id
+        }
+    }
     private val ids = AtomicLong(restored.maxOfOrNull { it.id } ?: 0L)
     private val running = AtomicBoolean(false)
     private val persistMutex = Mutex()
@@ -113,6 +125,10 @@ class AgentSession(
     /** Phone tasks started but without PhoneTaskFinished yet. */
     private val openRuns = LinkedHashSet<String>()
 
+    /** The coroutine owning the single execution slot; [stop] cancels it so a slow model call ends at once. */
+    @Volatile
+    private var currentJob: Job? = null
+
     /** Main-chat TaskEntry id for each task thread, so completion can update the same card. */
     private val taskEntryIds = java.util.concurrent.ConcurrentHashMap<String, Long>()
 
@@ -137,6 +153,19 @@ class AgentSession(
         interruptedQueue.forEach { id ->
             if (id !in resumable) {
                 queue?.finish(id, success = false, note = texts.interrupted)
+                // Close the chat card too: without this a task that died before its first
+                // checkpoint stays "进行中" forever in the conversation.
+                _items.value.filterIsInstance<ChatItem.TaskEntry>()
+                    .firstOrNull { it.taskId == id && it.running }
+                    ?.let { entry ->
+                        update(entry.id) { current ->
+                            if (current is ChatItem.TaskEntry) {
+                                current.copy(running = false, success = false, summary = texts.interrupted)
+                            } else {
+                                current
+                            }
+                        }
+                    }
                 taskThreads?.get(id)?.let { thread ->
                     taskThreads.finish(id, success = false, summary = texts.interrupted, steps = thread.steps)
                 }
@@ -195,9 +224,26 @@ class AgentSession(
                 is AgentEvent.PhoneTaskStarted -> {
                     taskThreads?.start(event.taskId, event.goal)
                     taskThreads?.append(event.taskId, item)
-                    val entryId = ids.incrementAndGet()
-                    taskEntryIds[event.taskId] = entryId
-                    add(ChatItem.TaskEntry(entryId, event.taskId, event.goal, running = true))
+                    // A resumed run keeps its id after a process restart, when taskEntryIds is
+                    // empty but the old (still "running") card is in restored history. Reuse it
+                    // instead of leaving a stale card behind and adding a duplicate one.
+                    val existing = taskEntryIds[event.taskId]
+                        ?: _items.value.filterIsInstance<ChatItem.TaskEntry>()
+                            .firstOrNull { it.taskId == event.taskId }?.id
+                    if (existing != null) {
+                        taskEntryIds[event.taskId] = existing
+                        update(existing) { current ->
+                            if (current is ChatItem.TaskEntry) {
+                                current.copy(goal = event.goal, running = true, success = false, summary = "", steps = 0)
+                            } else {
+                                current
+                            }
+                        }
+                    } else {
+                        val entryId = ids.incrementAndGet()
+                        taskEntryIds[event.taskId] = entryId
+                        add(ChatItem.TaskEntry(entryId, event.taskId, event.goal, running = true))
+                    }
                 }
                 is AgentEvent.PhoneTaskFinished -> {
                     taskThreads?.append(event.taskId, item)
@@ -482,10 +528,15 @@ class AgentSession(
         listener.onEvent(AgentEvent.PhoneTaskFinished(runId, false, message, 0))
     }
 
-    /** Overlay Stop / notification Stop / debug STOP: cooperative stop, pending prompts released. */
+    /** Overlay Stop / notification Stop / debug STOP: stop the model call and release pending prompts. */
     fun stop() {
         if (!_busy.value) return
         stopSignal.stop()
+        // A cooperative flag alone only takes effect at the next operator step, so a slow
+        // (or hung) LLM request would keep the UI busy until its read timeout. Cancelling the
+        // owning job makes Stop immediate; launch()'s CancellationException handler still
+        // emits Failed + PhoneTaskFinished and closes the queue row honestly.
+        currentJob?.cancel(CancellationException("stopped"))
         _approval.value?.answer?.complete(ApprovalAnswer(approved = false))
         _question.value?.answer?.complete(texts.stopped)
         _status.value = texts.stopped
@@ -536,7 +587,7 @@ class AgentSession(
         if (runId != null) synchronized(openRuns) { openRuns += runId }
         _status.value = null
         _busy.value = true
-        scope.launch {
+        currentJob = scope.launch {
             var failure: String? = null
             try {
                 ready()

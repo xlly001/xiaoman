@@ -37,6 +37,26 @@ class DebugReceiver : BroadcastReceiver() {
                 Log.i(TAG, "debug: say")
                 android.os.Handler(android.os.Looper.getMainLooper()).post { Log.i(TAG, "debug: say -> ${graph.session.submit(command.text)}") }
             }
+            is DebugCommand.Enqueue -> {
+                val result = graph.session.enqueueTask(command.goal, command.skill)
+                Log.i(TAG, "debug: enqueue ${command.goal} -> $result")
+            }
+            is DebugCommand.QueueControl -> {
+                val store = graph.taskQueue
+                val ok = when (command.op) {
+                    DebugCommand.QueueOp.PAUSE -> store.pause(command.id)
+                    DebugCommand.QueueOp.RESUME -> store.resume(command.id)
+                    DebugCommand.QueueOp.CANCEL -> store.cancel(command.id)
+                }
+                Log.i(TAG, "debug: queue ${command.op.name.lowercase()} ${command.id} -> $ok")
+            }
+            DebugCommand.QueueStatus -> {
+                val rows = graph.taskQueue.tasks.value
+                Log.i(TAG, "debug: queue status ${rows.size} rows")
+                rows.forEach { row ->
+                    Log.i(TAG, "debug: queue row ${row.id} ${row.state} ${row.goal}")
+                }
+            }
             DebugCommand.ReloadSkills -> {
                 val pending = goAsync()
                 graph.scope.launch {

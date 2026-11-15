@@ -9,6 +9,7 @@ import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -18,6 +19,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.ime
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -55,6 +57,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
@@ -75,6 +78,9 @@ import dev.xiaoman.app.session.AgentSession
 import dev.xiaoman.app.session.ChatItem
 import dev.xiaoman.hands.XiaomanAccessibilityService
 
+/** Height of the floating header scrim (avatar + name pill + status); the conversation scrolls underneath it. */
+private val HeaderOverlayHeight = 160.dp
+
 @Composable
 fun ChatScreen(
     graph: AppGraph,
@@ -86,7 +92,6 @@ fun ChatScreen(
     val session = graph.session
     val items by session.items.collectAsStateWithLifecycle()
     val busy by session.busy.collectAsStateWithLifecycle()
-    val status by session.status.collectAsStateWithLifecycle()
     val question by session.question.collectAsStateWithLifecycle()
     val approval by session.approval.collectAsStateWithLifecycle()
     val settings by graph.settings.settings.collectAsStateWithLifecycle()
@@ -106,8 +111,14 @@ fun ChatScreen(
     val listState = rememberLazyListState()
     // Re-scroll as the streaming reply grows (the last bubble's text changes without adding a row).
     val lastReplyLength = remember(items) { (items.lastOrNull() as? ChatItem.Assistant)?.text?.length ?: 0 }
-    LaunchedEffect(rows.size, lastReplyLength) {
-        if (rows.isNotEmpty()) listState.animateScrollToItem(rows.lastIndex)
+    val showAccessibilityBanner = service == null
+    val showModelsBanner = !settings.configured
+    val showNotificationsBanner = !notificationsGranted.granted
+    val bannerCount = listOf(showAccessibilityBanner, showModelsBanner, showNotificationsBanner).count { it }
+    // Banners are list items now, so the last message's index must include them.
+    val contentCount = bannerCount + if (items.isEmpty()) 1 else rows.size
+    LaunchedEffect(rows.size, lastReplyLength, contentCount) {
+        if (contentCount > 0) listState.animateScrollToItem(contentCount - 1)
     }
     LaunchedEffect(approval?.id) {
         if (approval != null) {
@@ -119,8 +130,84 @@ fun ChatScreen(
     // Keep the last message above the two opaque pills; the space around them stays transparent.
     val bottomSpace = if (keyboardOpen) 64.dp else DockSpace - 4.dp
 
+    // Frosted glass at the top fading to fully transparent, so the conversation that
+    // scrolls underneath the header stays visible instead of being cut off by a solid bar.
+    val headerScrim = Brush.verticalGradient(
+        0.0f to MaterialTheme.colorScheme.surface.copy(alpha = 0.10f),
+        0.5f to MaterialTheme.colorScheme.surface.copy(alpha = 0.03f),
+        1.0f to Color.Transparent,
+    )
+
     Box(Modifier.fillMaxSize()) {
-        Column(Modifier.fillMaxSize()) {
+        // The conversation fills the whole screen and scrolls *under* the floating header.
+        LazyColumn(
+            state = listState,
+            modifier = Modifier.fillMaxSize(),
+            contentPadding = PaddingValues(
+                start = 14.dp,
+                end = 14.dp,
+                top = HeaderOverlayHeight,
+                bottom = bottomSpace,
+            ),
+            verticalArrangement = if (items.isEmpty()) {
+                Arrangement.spacedBy(8.dp)
+            } else {
+                // Keep the newest message close to the composer instead of leaving a blank strip below it.
+                Arrangement.spacedBy(8.dp, Alignment.Bottom)
+            },
+        ) {
+            if (showAccessibilityBanner) {
+                item(key = "banner-accessibility") {
+                    MuseBanner(stringResource(R.string.banner_accessibility), stringResource(R.string.banner_accessibility_action)) {
+                        context.startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+                    }
+                }
+            }
+            if (showModelsBanner) {
+                item(key = "banner-models") {
+                    MuseBanner(stringResource(R.string.banner_models), stringResource(R.string.banner_models_action), onOpenSettings)
+                }
+            }
+            if (showNotificationsBanner) {
+                item(key = "banner-notifications") {
+                    MuseBanner(stringResource(R.string.banner_notifications), stringResource(R.string.banner_notifications_action), notificationsGranted.request)
+                }
+            }
+            if (items.isEmpty()) {
+                item {
+                    ChatWelcome(
+                        commands = commands,
+                        onRun = { onFillDraft(it.prompt) },
+                        onEdit = { editCommand = it },
+                        onDelete = { deleteCommand = it },
+                        onAdd = { addCommand = true },
+                    )
+                }
+            }
+            items(rows, key = { it.id }) { row ->
+                when (row) {
+                    is TimelineRow.Message -> ChatMessage(row.item, onOpenTask)
+                    is TimelineRow.Process -> ProcessCard(row.entries)
+                }
+            }
+        }
+        // Only the approval card floats above the dock. The composer already turns its
+        // mic into a stop button while busy, so a separate "processing" strip is redundant.
+        if (approval != null) {
+            Column(
+                Modifier.align(Alignment.BottomCenter).fillMaxWidth()
+                    .padding(bottom = if (keyboardOpen) 56.dp else DockSpace),
+            ) {
+                ApprovalCard(approval!!, session)
+            }
+        }
+        // Only the three glass controls, floating on a frosted-to-transparent scrim.
+        Box(
+            Modifier.align(Alignment.TopCenter)
+                .fillMaxWidth()
+                .height(HeaderOverlayHeight)
+                .background(headerScrim),
+        ) {
             ChatHeader(
                 ready = settings.configured && service != null,
                 busy = busy,
@@ -129,59 +216,6 @@ fun ChatScreen(
                 onClearHistory = { clearHistory = true },
                 onSearch = onSearch,
             )
-            if (service == null) {
-                MuseBanner(stringResource(R.string.banner_accessibility), stringResource(R.string.banner_accessibility_action)) {
-                    context.startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
-                }
-            }
-            if (!settings.configured) {
-                MuseBanner(stringResource(R.string.banner_models), stringResource(R.string.banner_models_action), onOpenSettings)
-            }
-            if (!notificationsGranted.granted) {
-                MuseBanner(stringResource(R.string.banner_notifications), stringResource(R.string.banner_notifications_action), notificationsGranted.request)
-            }
-            LazyColumn(
-                state = listState,
-                modifier = Modifier.weight(1f).fillMaxWidth(),
-                contentPadding = PaddingValues(start = 14.dp, end = 14.dp, top = 4.dp, bottom = bottomSpace),
-                verticalArrangement = if (items.isEmpty()) {
-                    Arrangement.spacedBy(8.dp)
-                } else {
-                    // Keep the newest message close to the composer instead of leaving a blank strip below it.
-                    Arrangement.spacedBy(8.dp, Alignment.Bottom)
-                },
-            ) {
-                if (items.isEmpty()) {
-                    item {
-                        ChatWelcome(
-                            commands = commands,
-                            onRun = { onFillDraft(it.prompt) },
-                            onEdit = { editCommand = it },
-                            onDelete = { deleteCommand = it },
-                            onAdd = { addCommand = true },
-                        )
-                    }
-                }
-                items(rows, key = { it.id }) { row ->
-                    when (row) {
-                        is TimelineRow.Message -> ChatMessage(row.item, onOpenTask)
-                        is TimelineRow.Process -> ProcessCard(row.entries)
-                    }
-                }
-            }
-        }
-        // The composer floats over the conversation; only its own pill is opaque, so the chat
-        // stays visible in the transparent margins around the buttons.
-        // Progress and approval cards sit just above the shared dock.
-        Column(
-            Modifier.align(Alignment.BottomCenter).fillMaxWidth()
-                .padding(bottom = if (keyboardOpen) 56.dp else DockSpace),
-        ) {
-            if (approval != null) {
-                ApprovalCard(approval!!, session)
-            } else if (busy) {
-                TaskStatus(status ?: stringResource(R.string.chat_status_busy), session::stop)
-            }
         }
     }
 

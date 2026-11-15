@@ -38,7 +38,7 @@ class MainActivity : ComponentActivity() {
                 AppSettings.THEME_DARK -> true
                 else -> isSystemInDarkTheme()
             }
-            XiaomanTheme(darkTheme = dark) { XiaomanRoot(graph) }
+            XiaomanTheme(darkTheme = dark) { XiaomanRoot(graph, darkTheme = dark) }
         }
     }
 }

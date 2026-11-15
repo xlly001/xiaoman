@@ -225,8 +225,12 @@ App 注册了 `dev.xiaoman.app.debug.DebugReceiver`（只在 debug 清单中导�
 | 广播 action | 参数 | 作用 |
 |---|---|---|
 | `dev.xiaoman.debug.RUN` | `goal`（字符串）、`skill`（可选）、`run_id`（可选） | 在前台服务中执行 `Agent.runPhoneTask` |
-| `dev.xiaoman.debug.STOP` | 无 | 给正在运行的任务发送停止信号 |
+| `dev.xiaoman.debug.SAY` | `text` | 模拟用户在主对话里发一句话 |
+| `dev.xiaoman.debug.STOP` | 无 | 停止当前任务（置位 `stopSignal` 并立即取消执行槽协程） |
 | `dev.xiaoman.debug.RELOAD_SKILLS` | 无 | 调用 `SkillRepository.reload()` 并记录加载问题 |
+| `dev.xiaoman.debug.ENQUEUE` | `goal`、`skill`（可选） | 走真实任务队列 `AgentSession.enqueueTask`，而非立即执行 |
+| `dev.xiaoman.debug.QUEUE_PAUSE` / `QUEUE_RESUME` / `QUEUE_CANCEL` | `id` | 改一个未启动队列行的状态，结果写 logcat |
+| `dev.xiaoman.debug.QUEUE_STATUS` | 无 | 把全部队列行（id / 状态 / 目标）打印到 logcat |
 
 示例：`adb shell am broadcast -n dev.xiaoman.app/.debug.DebugReceiver -a dev.xiaoman.debug.RUN --es goal "打开设置" --es run_id r1`
 
@@ -241,6 +245,18 @@ App 注册了 `dev.xiaoman.app.debug.DebugReceiver`（只在 debug 清单中导�
 `kind` 是 `AgentEvent` 的类名。`text` 存放 Reply / NeedsUser / finish 的摘要和失败信息；`ok` 存放
 `ActionResult.ok` 或 `success`；`decision` 为 `allow|ask|deny: <原因>`。每一步的截图保存在同目录下的
 `step-<n>.png`。
+
+## 视觉结构与会话可靠性（模拟器验收）
+
+**全屏渐变与透明顶栏**：`XiaomanRoot` 的 `Scaffold(containerColor = Color.Transparent)` 上铺一张垂直渐变（浅色蓝→淡紫→暖橙，深色深蓝→深紫→深棕）。渐变是否取深色版由 `MainActivity` 计算出的 `darkTheme` 决定并显式传给 `XiaomanRoot`，**不能**在 `XiaomanRoot` 里重新调用 `isSystemInDarkTheme()`，否则用户在设置里手动选「深色」时卡片变深而背景仍是浅蓝。聊天页顶部只留三枚玻璃圆钮，其背景是极淡的「磨砂 → 透明」渐变；`LazyColumn` 铺满全屏，用 `contentPadding(top = 160.dp)` 把首条内容推到顶栏下方，滚动时对话从按钮后面透出。头像资源 `drawable-nodpi/avatar_xiaoman.png` 是原创生成的圆形透明 PNG。
+
+**停止语义**：`AgentSession.launch()` 把 `scope.launch` 返回的 `Job` 存进 `currentJob`。`stop()` 除了置位 `stopSignal`、释放挂起的审批/提问之外，还立即 `currentJob?.cancel(CancellationException("stopped"))`。纯协作式停止要等当前 LLM 请求返回（可能是 120s 读超时），取消协程则让停止立即生效；`launch` 的 `CancellationException` 分支照常发出 `Failed` + `PhoneTaskFinished` 并把队列行收尾为 FAILED。
+
+**任务卡身份**：`PhoneTaskStarted` 携带的 `taskId` 是任务卡的唯一身份。`launch` 恢复后的 `taskEntryIds` 是空的，所以续跑时先从内存映射、再从恢复的 `history.json` 里按 `taskId` 找旧卡并 `update` 复用，避免留下「进行中」幽灵卡；加载历史时再按 `taskId` 只保留 id 最新的一张，清理旧版本已写盘的重复卡。`AgentSession.init` 对无检查点的中断任务也同步关闭主对话卡片。
+
+**SSE 结束标记**：`OpenAiCompatibleClient.stream()` 读到 `data: [DONE]` 后 `break` 而不是 `continue`。部分 OpenAI 兼容代理发完结束标记仍保持 HTTP 连接且不给 Content-Length，等 EOF 会让回复一直转圈到读超时。
+
+**E2E 工具链坑**：`uiautomator dump` 会临时注册 `UiTestAutomationService`，退出时把 `accessibility_enabled` / `enabled_accessibility_services` 重置为 `0` / `null`，从而解绑小满的无障碍服务。`scripts/e2e/adb_ui.py` 的 `dump()` 在服务原本已启用时自动 `a11y_enable()` 并等待 `dumpsys accessibility` 出现绑定；另外，任务执行期间应改用 `ENQUEUE` 等广播 + `chat/queue.json` / `chat/tasks.json` + logcat 验收，避免读屏任务在解绑窗口失败。
 
 ## 模型
 

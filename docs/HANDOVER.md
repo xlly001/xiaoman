@@ -33,6 +33,7 @@ cd f:\gowork\xllyxx\xiaoman
 .\gradlew.bat :app:assembleDebug :app:lintDebug --offline
 ```
 
+- **JDK 必须是 17**（`D:\Android\jdk17`）：Java 21+（实测 25.0.1）会让 Kotlin 2.1 的 `JavaVersion.parse` 抛 `IllegalArgumentException: 25.0.1`，Gradle 在编译前就失败。
 - APK：`app/build/outputs/apk/debug/app-debug.apk`
 - 交付副本：`dist/xiaoman-muse-latest-debug.apk`（`dist/` 未纳入 git，避免把 65 MB 的包提交进去）
 - 模拟器（已装好 App）：AVD `xiaoman35`，Android 15 / API 35 / x86_64，1080×2400，WHPX 加速。
@@ -51,11 +52,11 @@ cd f:\gowork\xllyxx\xiaoman
 | 能力 | 说明 |
 |---|---|
 | 全局 Dock | 输入框 + 导航合并为一张 96% 不透明卡片，外圈透明；所有页签常驻；键盘打开只留输入行 |
-| 聊天 | Open Muse 风格气泡、任务卡、处理过程折叠、附件（拍照/相册/文本）、语音输入、搜索、清空会话 |
+| 聊天 | Open Muse 风格气泡、任务卡、处理过程折叠、附件（拍照/相册/文本）、语音输入、搜索、清空会话；全屏蓝→淡紫→暖橙渐变（深色另有一套），顶栏只留三枚玻璃圆钮 + 82dp 圆形头像，磨砂→透明，对话从顶栏后方透出；无底部「处理中」浮条 |
 | 能力页 | 技能 / 服务分段切换，复用 `SkillsScreen` 与 `McpScreen` |
 | 任务页 | 历史任务筛选 + 队列区（暂停/继续/取消）+「新建任务」 |
 | 任务详情 | 目标/状态/步数/处理过程；底部 Dock 可直接继续该任务对话；运行中可停止 |
-| 小满页 | 按天横向卡片日记 |
+| 小满页 | 112dp 圆形头像 + 名字/副标题 + 按天横向 Pager 半透明日期卡片 |
 | 设置 | 服务商 → Key → 拉取 `/models` → 模型展开配置 → 设为聊天/操作模型；主题、语言即时生效；通知、历史上限、无障碍入口、清空轨迹 |
 
 ### 2.2 会话与任务（本阶段重点）
@@ -66,7 +67,8 @@ cd f:\gowork\xllyxx\xiaoman
   - 有检查点 → 队列行回到 QUEUED，显示「重启后继续」，续跑时注入 `TaskResume(steps, history)`；
   - 无检查点 → 队列行/线程/任务卡统一标记「应用重启，任务中断」；
   - 技能流程（非空 `flow.yaml`）暂不支持恢复，直接失败，避免重放已生效动作。
-- **停止语义**：只停当前任务，队列继续；运行中任务不能从队列区取消，只能在详情页停止。
+- **停止语义**：只停当前任务，队列继续；运行中任务不能从队列区取消，只能在详情页/Dock 停止。`stop()` 除置位 `stopSignal` 外立即 `cancel` 执行槽协程，慢速或挂起的模型请求不再等读超时；15 秒请求实测 2.2 秒内结束并发 `PhoneTaskFinished(ok=false)`。
+- **任务卡身份**：`taskId` 是主对话任务卡的唯一身份。续跑时 `taskEntryIds` 为空，所以按 `taskId` 从恢复的 `history.json` 复用旧卡；加载历史时同 id 只保留最新卡，清理旧版本遗留的「进行中」幽灵卡。无检查点的中断任务也会同步关闭主对话卡片。
 - **不学习半截路径**：续跑任务成功也不写 how-to 记忆。
 
 ### 2.3 国际化与文档
@@ -172,6 +174,38 @@ cd f:\gowork\xllyxx\xiaoman
 - **CI 入口**（`Main.kt`）：`./gradlew :eval:run` 打印报告、写 `eval/build/reports/eval/{report.txt,report.json}`，任一场景失败退出码 1。`:eval:test` 4 项含「失败可稳定复现」自检。Windows 控制台中文可能乱码，直接看 UTF-8 的 `report.txt` 即可。
 - **验证结果**：15/15 通过；全量回归 306 个单测 0 失败；`:app:lintDebug` 通过。
 
+### 5.6 模拟器端到端验收与可靠性修复（已完成）
+
+在 AVD `xiaoman35` / API 35 上用宿主假 OpenAI 兼容服务跑通完整链路，全程不需要真实 Key。
+
+**设施**（`scripts/e2e/`，纯 Python 标准库）
+
+| 脚本 | 作用 |
+|---|---|
+| `fake_llm_server.py` | `/v1/models`、`/v1/chat/completions`（SSE / JSON）、`/control`、`/control/reset`、`/log`、`/health`；`response_delay_ms` 对包括非流式操作模型在内的所有请求生效，`hold_after_done_ms` 复现代理发完 `[DONE]` 不关连接；请求日志写 `build/e2e/requests.jsonl` 且 API key 脱敏 |
+| `adb_ui.py` | `dump / tap / type / key / wait / shot / log / a11y`；Compose 按文本 + bounds 定位 |
+| `setup_model.py` | 用 `adb root` 写明文 `settings.xml`（`http://10.0.2.2:8765/v1`、两个假模型），Key 只在 UI 输一次交给 `EncryptedSharedPreferences` |
+
+debug 广播新增（仅 debug 包）：`dev.xiaoman.debug.ENQUEUE`（走真实队列）、`QUEUE_PAUSE` / `QUEUE_RESUME` / `QUEUE_CANCEL`（带 `id`）、`QUEUE_STATUS`。队列状态也可直接读 `chat/queue.json` / `chat/tasks.json`。
+
+**验收结果**
+
+- 聊天流式：气泡逐步增长、自动跟随滚动、最终一条 `Assistant` 落盘；`hold_after_done_ms=25000` 下修复后约 3.8s 完成。429 重试 3 次后给出中文错误提示。
+- 队列：连派 3 个任务 → `RUNNING / QUEUED / QUEUED` → 依次 `DONE`，相邻任务的 `PhoneTaskFinished` / `PhoneTaskStarted` 间隔 <100ms；暂停 `QUEUED→PAUSED→QUEUED`、取消 `QUEUED→CANCELLED` 且被取消的任务未被执行。
+- 断点续跑：checkpoint `steps=1`，`am force-stop` 后重启 `resumed=true`，`StepPlanned` 从 `step:1` 继续，最终 `DONE`。
+- 停止：15 秒模型请求下 STOP 后 2.2 秒即 `FAILED / 已停止`。
+- 页面/系统：5 个 Tab、设置页全部设置项、搜索、更多菜单只留两项、深浅主题、中英文切换、1.3 倍字体、通知渠道、无障碍服务绑定。
+
+**修复的真实缺陷**
+
+1. `OpenAiCompatibleClient.stream()` 读到 `data: [DONE]` 后由 `continue` 改 `break`：代理保持连接时不再等到读超时；补 2 项 `core-llm` 回归。
+2. `AgentSession.stop()` 立即取消 `currentJob`：慢速/挂起模型请求下 Stop 不再迟滞；补 `AgentSessionTest`。
+3. 续跑按 `taskId` 复用任务卡 + 历史同 id 去重 + 无检查点中断关闭旧卡；补 3 项 `app` 单测。
+4. `MainActivity` 把 `darkTheme` 传给 `XiaomanRoot`：手动选「深色」时全屏渐变同步变深（原来只用 `isSystemInDarkTheme()`）。
+5. `adb_ui.py` 在 `uiautomator dump` 后自动恢复无障碍服务绑定。
+
+**回归**：`./gradlew test -x :web-server:test :eval:run :app:lintDebug` 全绿（193 tasks / 1m47s）；`web-server` 的 2 项失败为 P0-4 时已确认的预先存在环境性问题。i18n 仍为 364/364。
+
 ---
 
 ## 6. 下一步路线
@@ -215,6 +249,11 @@ cd f:\gowork\xllyxx\xiaoman
 | adb 输入中文没进输入框 | Google 输入法处于组合态；先 `input keyevent 66` 提交，再用 `uiautomator dump` 找按钮 bounds 点击 |
 | 离线构建失败 | 加 `--offline`；首次构建需要联网下载依赖 |
 | 队列任务不启动 | 检查模型是否配置、无障碍是否开启；`resumeQueue` 在模型未配置时会保持排队 |
+| 构建报 `IllegalArgumentException: 25.0.1` | 用了 JDK 25；Kotlin 2.1 的 `JavaVersion.parse` 不认。设 `JAVA_HOME=D:\Android\jdk17` 再跑 |
+| 无障碍开了，UI 仍显示「服务未开启」 | `uiautomator dump` 会临时注册 UiAutomation 服务并把 `accessibility_enabled` / `enabled_accessibility_services` 重置为 0/null；用 `python scripts/e2e/adb_ui.py a11y --on` 恢复，`dump()` 已内置自动恢复 |
+| 任务在 UI dump 后失败「无障碍服务未开启」或「屏幕长时间没有变化」 | 同上；任务运行期间避免 `uiautomator`，改用 `ENQUEUE` 等广播 + `queue.json` / `tasks.json` + logcat 验收 |
+| `10.0.2.2:8765` 返回 404 HTML | 端口被遗留的 `python -m http.server` 占了；`netstat -ano \| findstr 8765` 找 PID 停掉，只保留 `fake_llm_server.py` |
+| 顶部「待设置」只在 dump 截图里出现 | 那是服务正被解绑的瞬间快照；用 `screencap`（`adb_ui.py shot`）看是「已就绪」 |
 
 ---
 
@@ -223,19 +262,17 @@ cd f:\gowork\xllyxx\xiaoman
 **已验证（模拟器，API 35）**
 
 - 构建、单测、lint 全绿；中英文 key 364/364。
-- 全量回归 306 个单测 0 失败；`:eval:run` 15 个评测场景 15 通过 0 失败（含 5 个高危拦截场景，报告在 `eval/build/reports/eval/`）。
-- Dock、聊天、能力、任务、记忆、小满、设置页布局正常。
-- 队列：新建任务、暂停/继续/取消、重启持久化、RUNNING 无检查点失败/有检查点恢复、任务 id 去重。
-- 任务详情内继续对话；主对话不显示会话列表。
-- 搜索结果可直达任务详情；日记按天分页。
+- 排除 `web-server` 的全量回归 `./gradlew test -x :web-server:test :eval:run :app:lintDebug` 通过（193 tasks / 1m47s）；`:eval:run` 15/15 场景通过。`web-server` 的 2 项失败是 P0-4 时已确认的预先存在环境性问题。
+- Dock、聊天、能力、任务、记忆、小满、设置、任务详情、搜索页布局正常；深浅主题、中英文切换、1.3 倍系统字体无溢出；通知渠道 `status / attention / reminders` 已注册并有投递。
+- **端到端（宿主假 LLM 服务，见 §5.6）**：流式聊天与停止、429 重试、队列三任务串行、暂停/继续/取消、断点续跑（checkpoint → `resumed=true` → 从第 1 步之后继续）、Stop 立即取消、任务卡复用与历史去重。
+- 无障碍服务经 secure settings 启用后 `dumpsys accessibility` 显示 `Bound services:{Service[label=小满…]}`。
 
 **仍需真实 Key / 真机验收**
 
-- 真实模型流式回复端到端验收（P0-4 代码已完成，需用真实 Key 在模拟器跑一遍「首 token 延迟 / 增量渲染 / 停止」；也可用宿主假 SSE 服务经 `http://10.0.2.2:<port>/v1` 验收，debug 清单已允许明文 HTTP）。
-- 真实任务执行、任务卡状态刷新、断点续跑。
-- 附件图片发给视觉模型。
-- 真实厂商 `/models`。
-- 语音识别、无障碍读屏/点击、通知、TalkBack、大字体。
+- 真实厂商的 SSE 行为与 `/models` 目录（假服务已覆盖协议层，但真实代理的鉴权、限流、图片模态未验）。
+- 操作模型在真实屏幕截图上的读屏 / 点击效果（假服务返回的是固定 `finish` / `wait` 动作）。
+- 附件图片发给视觉模型、语音识别结果、TalkBack 完整朗读链路。
+- 真机（非模拟器）上的无障碍权限与后台保活。
 
 ---
 

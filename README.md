@@ -103,6 +103,25 @@ $env:ANDROID_HOME = 'D:\Android\sdk'  # Android SDK 35
 产物在 `app/build/outputs/apk/debug/app-debug.apk`。首次构建会下载 Gradle 依赖，之后可离线构建。
 Debug 清单允许明文 HTTP，便于连接本机 vLLM/Ollama（例如 `http://127.0.0.1:11434/v1`）；Release 清单保持默认仅 HTTPS。
 
+**必须用 JDK 17**：Java 21+（实测 25.0.1）会让 Kotlin 2.1 的 `JavaVersion.parse` 抛 `IllegalArgumentException: 25.0.1`，Gradle 在编译前就失败。
+
+## 模拟器端到端验收（无需真实 Key）
+
+`scripts/e2e/` 是纯 Python 标准库的验收工具，配合 AVD `xiaoman35`（API 35）即可在没有真实模型的情况下跑通聊天流式、任务队列、断点续跑等完整链路。
+
+```bash
+python scripts/e2e/fake_llm_server.py --port 8765 --log-file build/e2e/requests.jsonl
+python scripts/e2e/setup_model.py          # 注入 http://10.0.2.2:8765/v1 与两个假模型
+python scripts/e2e/adb_ui.py a11y --on     # 启用无障碍服务
+python scripts/e2e/adb_ui.py dump          # 按文本 / content-desc 定位 Compose 节点
+```
+
+- `fake_llm_server.py`：`/v1/models`、`/v1/chat/completions`（SSE / JSON）、`/control`、`/control/reset`、`/log`、`/health`。`response_delay_ms` 对**所有**请求生效（含非流式操作模型），用来把队列、暂停、续跑的中间态拉长到可观察；请求日志里的 API key 会脱敏。
+- `adb_ui.py`：`dump / tap / type / key / wait / shot / log / a11y`。**`uiautomator dump` 会把无障碍 secure 设置重置为 0/null 并解绑小满服务**，脚本在服务原本已启用时会自动恢复并等待系统重新绑定。
+- debug 广播（仅 debug 包）：`dev.xiaoman.debug.ENQUEUE`（`--es goal`）、`QUEUE_PAUSE` / `QUEUE_RESUME` / `QUEUE_CANCEL`（`--es id`）、`QUEUE_STATUS`；队列状态也可直接读 `chat/queue.json` / `chat/tasks.json`。
+
+> 验收队列/停止/续跑时尽量全程用广播 + 文件 + logcat，不要在任务运行中做 `uiautomator dump`：解绑服务的瞬间正在读屏的任务会以「无障碍服务未开启」失败。
+
 ## 技能与开发者 CLI
 
 - 技能格式见 [docs/skills.md](docs/skills.md)，示例在 [skills/examples/](skills/examples/)。
@@ -135,7 +154,7 @@ xiaoman/
 ├── eval/            # 纯 JVM 场景评测：DSL + 假 LLM / 假设备 + 事件断言
 ├── skills/examples/ # 示例技能，也会打包进 APK
 ├── docs/            # 架构与技能文档
-└── scripts/         # 构建脚本
+└── scripts/         # 构建脚本 + scripts/e2e/（假 LLM 服务、adb 助手、模型配置注入）
 ```
 
 `core-*` 都是纯 Kotlin/JVM 模块，不依赖 Android API，可以在任何机器上跑单元测试。详细设计见

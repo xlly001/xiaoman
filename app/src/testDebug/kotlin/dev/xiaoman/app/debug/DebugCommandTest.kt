@@ -35,6 +35,35 @@ class DebugCommandTest {
         assertEquals("generated", cmd.runId)
     }
 
+    @Test fun `enqueue needs a goal and keeps the optional skill`() {
+        assertEquals(
+            DebugCommand.Enqueue("查快递", "taobao-compare"),
+            parse("dev.xiaoman.debug.ENQUEUE", "goal" to " 查快递 ", "skill" to "taobao-compare"),
+        )
+        assertEquals(
+            DebugCommand.Enqueue("查快递", null),
+            parse("dev.xiaoman.debug.ENQUEUE", "goal" to "查快递", "skill" to " "),
+        )
+        assertNull(parse("dev.xiaoman.debug.ENQUEUE", "skill" to "taobao-compare"))
+    }
+
+    @Test fun `queue controls need an id`() {
+        assertEquals(
+            DebugCommand.QueueControl(DebugCommand.QueueOp.PAUSE, "q1"),
+            parse("dev.xiaoman.debug.QUEUE_PAUSE", "id" to " q1 "),
+        )
+        assertEquals(
+            DebugCommand.QueueControl(DebugCommand.QueueOp.RESUME, "q1"),
+            parse("dev.xiaoman.debug.QUEUE_RESUME", "id" to "q1"),
+        )
+        assertEquals(
+            DebugCommand.QueueControl(DebugCommand.QueueOp.CANCEL, "q1"),
+            parse("dev.xiaoman.debug.QUEUE_CANCEL", "id" to "q1"),
+        )
+        assertNull(parse("dev.xiaoman.debug.QUEUE_PAUSE"))
+        assertEquals(DebugCommand.QueueStatus, parse("dev.xiaoman.debug.QUEUE_STATUS"))
+    }
+
     @Test fun `stop reload and unknown actions`() {
         assertEquals(DebugCommand.Stop, parse("dev.xiaoman.debug.STOP"))
         assertEquals(DebugCommand.ReloadSkills, parse("dev.xiaoman.debug.RELOAD_SKILLS"))

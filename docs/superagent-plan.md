@@ -509,6 +509,18 @@ interface Verifier {
   ```
 - 已接 15 个场景（聊天 3 / 记忆 3 / 技能确认 2 / 任务 2 / 高危拦截 5），超过计划的 10 个；`:eval:test` 4 项 + `:eval:run` 报告齐全，失败可稳定复现且退出码 1。
 
+### P0-6 模拟器端到端验收与可靠性修复（已完成）
+
+在 AVD `xiaoman35` / API 35 上用宿主假 OpenAI 兼容服务（`scripts/e2e/`）跑通完整链路，不需要真实 Key：
+
+- 验收设施：`fake_llm_server.py`（SSE / JSON / 429 / `response_delay_ms` / `hold_after_done_ms`）、`adb_ui.py`（按文本定位 Compose 节点 + 无障碍服务守护）、`setup_model.py`（配置注入）；debug 广播新增 `ENQUEUE / QUEUE_PAUSE / QUEUE_RESUME / QUEUE_CANCEL / QUEUE_STATUS`。
+- 验收通过：聊天流式与停止、队列三任务串行、暂停/继续/取消、断点续跑（checkpoint `steps=1` → `resumed=true` → `StepPlanned step:1`）、5 个 Tab、设置、搜索、主题、中英文、大字体、通知渠道。
+- 修复的真实缺陷：① SSE `[DONE]` 后代理保持连接导致回复挂起；② 停止要等当前模型请求返回才生效（改为立即取消 `currentJob`）；③ 断点续跑产生重复「进行中」任务卡（按 `taskId` 复用 + 历史去重）；④ 深色主题下全屏渐变不跟随应用主题。
+- 关键环境坑：`uiautomator dump` 会重置无障碍 secure 设置并解绑服务；任务执行期间应改用广播 + 文件 + logcat 验收。构建必须用 JDK 17（Java 25 会让 Kotlin 2.1 编译前失败）。
+- 回归：排除 `web-server` 的 `./gradlew test -x :web-server:test :eval:run :app:lintDebug` 全绿；`web-server` 2 项失败为预先存在的环境性问题。中英文资源仍为 364/364。
+
+阶段 0 剩余工作仍是 **P0-3 统一工具注册表**。
+
 ### P1-1 记忆分层与混合检索
 
 - `MemoryRecord` + `MemoryKind`；保留 Markdown 作为导出格式。

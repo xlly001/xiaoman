@@ -12,6 +12,7 @@ import dev.xiaoman.api.ToolSpec
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.withTimeout
@@ -27,6 +28,8 @@ import kotlinx.serialization.json.putJsonObject
 import okhttp3.mockwebserver.MockResponse
 import okhttp3.mockwebserver.MockWebServer
 import okhttp3.mockwebserver.SocketPolicy
+import java.net.InetAddress
+import java.net.ServerSocket
 import java.util.Base64
 import java.util.concurrent.TimeUnit
 import kotlin.coroutines.cancellation.CancellationException
@@ -405,5 +408,57 @@ class OpenAiCompatibleClientTest {
             }
         }
         assertEquals(listOf("你"), collected)
+    }
+
+    @Test
+    fun `ignores frames sent after the done marker`() = runTest {
+        server.enqueue(sse(
+            """data: {"choices":[{"delta":{"content":"你"},"finish_reason":null}]}""",
+            """data: {"choices":[{"delta":{},"finish_reason":"stop"}]}""",
+            "data: [DONE]",
+            """data: {"choices":[{"delta":{"content":"EXTRA"},"finish_reason":null}]}""",
+        ))
+        val collected = mutableListOf<String>()
+        val response = client().completeStreaming(ChatRequest(listOf(ChatMessage.user("hi"))), { false }) { collected += it }
+        assertEquals("你", response.text)
+        assertEquals("stop", response.finishReason)
+        assertEquals(listOf("你"), collected)
+    }
+
+    @Test
+    fun `finishes at the done marker when the server keeps the connection open`() = runBlocking {
+        // Regression for a real emulator finding: proxies that leave the SSE socket
+        // open after `[DONE]` used to keep the reply spinning until read timeout.
+        val socketServer = ServerSocket(0, 1, InetAddress.getByName("127.0.0.1"))
+        val payload = listOf(
+            """data: {"choices":[{"delta":{"content":"OK"},"finish_reason":null}]}""",
+            """data: {"choices":[{"delta":{},"finish_reason":"stop"}]}""",
+            "data: [DONE]",
+        ).joinToString("\n", postfix = "\n\n")
+        val headers = "HTTP/1.1 200 OK\r\nContent-Type: text/event-stream\r\nCache-Control: no-cache\r\nConnection: keep-alive\r\n\r\n"
+        val holder = launch(Dispatchers.IO) {
+            socketServer.accept().use { socket ->
+                val out = socket.getOutputStream()
+                out.write((headers + payload).toByteArray(Charsets.UTF_8))
+                out.flush()
+                // Deliberately never close: a client waiting for EOF would hang here.
+                delay(15_000)
+            }
+        }
+        try {
+            val cfg = config().copy(baseUrl = "http://127.0.0.1:${socketServer.localPort}/v1")
+            val collected = mutableListOf<String>()
+            val response = withTimeout(4_000) {
+                client(cfg, maxRetries = 0).completeStreaming(
+                    ChatRequest(listOf(ChatMessage.user("hi"))), { false },
+                ) { collected += it }
+            }
+            assertEquals("OK", response.text)
+            assertEquals("stop", response.finishReason)
+            assertEquals(listOf("OK"), collected)
+        } finally {
+            holder.cancel()
+            socketServer.close()
+        }
     }
 }

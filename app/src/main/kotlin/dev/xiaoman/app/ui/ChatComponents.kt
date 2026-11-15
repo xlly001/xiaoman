@@ -3,7 +3,9 @@ package dev.xiaoman.app.ui
 import android.widget.Toast
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
@@ -13,6 +15,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
@@ -28,7 +31,6 @@ import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.outlined.ExpandLess
 import androidx.compose.material.icons.outlined.ExpandMore
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
@@ -44,14 +46,13 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.AnnotatedString
-import androidx.compose.ui.semantics.LiveRegionMode
-import androidx.compose.ui.semantics.liveRegion
-import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
@@ -102,11 +103,6 @@ internal fun ChatHeader(
                         leadingIcon = { Icon(Icons.Filled.DeleteSweep, contentDescription = null) },
                         onClick = { menu = false; onClearHistory() },
                     )
-                    DropdownMenuItem(
-                        text = { Text(stringResource(R.string.nav_settings)) },
-                        leadingIcon = { Icon(Icons.Filled.Settings, contentDescription = null) },
-                        onClick = { menu = false; onOpenSettings() },
-                    )
                 }
             }
         }
@@ -114,15 +110,25 @@ internal fun ChatHeader(
             Modifier.align(Alignment.TopCenter).padding(horizontal = 72.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
+            // Round mascot avatar above the name pill, matching the Open Muse header.
+            Image(
+                painter = painterResource(R.drawable.avatar_xiaoman),
+                contentDescription = null,
+                modifier = Modifier
+                    .size(82.dp)
+                    .clip(CircleShape)
+                    .border(3.dp, MaterialTheme.colorScheme.surface, CircleShape),
+            )
             Surface(
+                modifier = Modifier.offset(y = (-9).dp),
                 shape = CircleShape,
-                color = MaterialTheme.colorScheme.surface,
+                color = MaterialTheme.colorScheme.surface.copy(alpha = 0.86f),
                 border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
                 shadowElevation = 2.dp,
             ) {
                 Text(
                     stringResource(R.string.app_name),
-                    modifier = Modifier.padding(horizontal = 14.dp, vertical = 7.dp),
+                    modifier = Modifier.padding(horizontal = 14.dp, vertical = 6.dp),
                     style = MaterialTheme.typography.titleMedium,
                 )
             }
@@ -137,7 +143,7 @@ internal fun ChatHeader(
                 ),
                 style = MaterialTheme.typography.bodySmall,
                 color = if (attention) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.padding(top = 3.dp),
+                modifier = Modifier.offset(y = (-7).dp).padding(bottom = 3.dp),
             )
         }
     }
@@ -212,30 +218,6 @@ internal fun ChatWelcome(
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier.padding(top = 1.dp),
         )
-    }
-}
-
-@Composable
-internal fun TaskStatus(status: String, onStop: () -> Unit) {
-    Surface(
-        color = MaterialTheme.colorScheme.primaryContainer,
-        shape = RoundedCornerShape(18.dp),
-        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 6.dp).semantics { liveRegion = LiveRegionMode.Polite },
-    ) {
-        Row(Modifier.padding(start = 14.dp, end = 6.dp, top = 6.dp, bottom = 6.dp), verticalAlignment = Alignment.CenterVertically) {
-            CircularProgressIndicator(Modifier.size(14.dp), strokeWidth = 2.dp, color = MaterialTheme.colorScheme.primary)
-            Text(
-                status,
-                Modifier.weight(1f).padding(horizontal = 10.dp),
-                style = MaterialTheme.typography.labelMedium,
-                color = MaterialTheme.colorScheme.onPrimaryContainer,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
-            TextButton(onClick = onStop) {
-                Text(stringResource(R.string.chat_stop), style = MaterialTheme.typography.labelMedium)
-            }
-        }
     }
 }
 

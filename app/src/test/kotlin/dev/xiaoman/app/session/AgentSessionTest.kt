@@ -13,6 +13,7 @@ import dev.xiaoman.app.RunIds
 import dev.xiaoman.hands.MutableStopSignal
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
@@ -262,6 +263,143 @@ class AgentSessionTest {
         val resume = assertNotNull(resumes.single())
         assertEquals(3, resume.steps)
         assertEquals(2, resume.history.size)
+    }
+
+    @Test fun `stop cancels a slow model call instead of waiting for the next step`() = runTest(UnconfinedTestDispatcher()) {
+        val started = CompletableDeferred<Unit>()
+        val agent = object : Agent {
+            override suspend fun handle(
+                userMessage: String,
+                listener: AgentListener,
+                stop: StopSignal,
+                images: List<ByteArray>,
+                taskId: String?,
+            ) = Unit
+
+            override suspend fun runPhoneTask(
+                goal: String,
+                skillName: String?,
+                listener: AgentListener,
+                stop: StopSignal,
+                resume: TaskResume?,
+            ): AgentEvent.PhoneTaskFinished {
+                listener.onEvent(AgentEvent.PhoneTaskStarted("slow", goal, skillName))
+                started.complete(Unit)
+                // A model request that never returns: a cooperative stop flag alone could not end it.
+                awaitCancellation()
+            }
+        }
+        val queue = TaskQueueStore(queueFile())
+        val s = queuedSession(agent, queue, RunIds())
+
+        assertIs<AgentSession.Submit.Queued>(s.enqueueTask("slow goal"))
+        advanceUntilIdle()
+        assertTrue(started.isCompleted)
+        assertEquals(QueueState.RUNNING, queue.tasks.value.single().state)
+
+        s.stop()
+        advanceUntilIdle()
+
+        assertEquals(QueueState.FAILED, queue.tasks.value.single().state)
+        assertTrue(traced.any { it is AgentEvent.PhoneTaskFinished && !it.success })
+        assertFalse(s.busy.value)
+    }
+
+    @Test fun `a resumed task reuses the restored chat card instead of duplicating it`() = runTest(UnconfinedTestDispatcher()) {
+        val dir = Files.createTempDirectory("xiaoman-resume-card").toFile()
+        dir.deleteOnExit()
+        val store = ChatHistoryStore(File(dir, "history.json")) { 2_000 }
+        // The process died mid-task: the card is still "running" and the in-memory id map is gone.
+        store.save(listOf(ChatItem.TaskEntry(7, "q1", "goal", running = true)))
+
+        val agent = object : Agent {
+            override suspend fun handle(
+                userMessage: String,
+                listener: AgentListener,
+                stop: StopSignal,
+                images: List<ByteArray>,
+                taskId: String?,
+            ) = Unit
+
+            override suspend fun runPhoneTask(
+                goal: String,
+                skillName: String?,
+                listener: AgentListener,
+                stop: StopSignal,
+                resume: TaskResume?,
+            ): AgentEvent.PhoneTaskFinished {
+                listener.onEvent(AgentEvent.PhoneTaskStarted("q1", goal, skillName))
+                val done = AgentEvent.PhoneTaskFinished("q1", true, "done after resume", 2)
+                listener.onEvent(done)
+                return done
+            }
+        }
+        val s = AgentSession(
+            scope = backgroundScope,
+            agent = { agent },
+            runIds = RunIds(),
+            stopSignal = MutableStopSignal(),
+            trace = trace,
+            history = store,
+        )
+        s.runPhoneTask("goal", null, "q1")
+        advanceUntilIdle()
+
+        val cards = s.items.value.filterIsInstance<ChatItem.TaskEntry>()
+        assertEquals(1, cards.size)
+        assertEquals(7L, cards.single().id)
+        assertFalse(cards.single().running)
+        assertTrue(cards.single().success)
+        assertEquals("done after resume", cards.single().summary)
+    }
+
+    @Test fun `an interrupted task without a checkpoint closes its chat card on restart`() = runTest(UnconfinedTestDispatcher()) {
+        val dir = Files.createTempDirectory("xiaoman-interrupted-card").toFile()
+        dir.deleteOnExit()
+        val queueFile = File(dir, "queue.json")
+        TaskQueueStore(queueFile).apply {
+            enqueue("q1", "goal", at = 100)
+            next(at = 200) // leaves a RUNNING row on disk
+        }
+        val history = ChatHistoryStore(File(dir, "history.json")) { 2_000 }
+        history.save(listOf(ChatItem.TaskEntry(3, "q1", "goal", running = true)))
+
+        val s = AgentSession(
+            scope = backgroundScope,
+            agent = { null },
+            runIds = RunIds(),
+            stopSignal = MutableStopSignal(),
+            trace = trace,
+            history = history,
+            queue = TaskQueueStore(queueFile),
+        )
+        val card = s.items.value.filterIsInstance<ChatItem.TaskEntry>().single()
+        assertFalse(card.running)
+        assertEquals("应用重启，任务中断", card.summary)
+    }
+
+    @Test fun `restored history keeps only one chat card per run id`() = runTest(UnconfinedTestDispatcher()) {
+        val dir = Files.createTempDirectory("xiaoman-dedupe-cards").toFile()
+        dir.deleteOnExit()
+        val store = ChatHistoryStore(File(dir, "history.json")) { 2_000 }
+        store.save(
+            listOf(
+                ChatItem.TaskEntry(3, "q1", "goal", running = true),
+                ChatItem.TaskEntry(8, "q1", "goal", running = false, success = true, summary = "done"),
+            ),
+        )
+        val s = AgentSession(
+            scope = backgroundScope,
+            agent = { null },
+            runIds = RunIds(),
+            stopSignal = MutableStopSignal(),
+            trace = trace,
+            history = store,
+        )
+        val cards = s.items.value.filterIsInstance<ChatItem.TaskEntry>()
+        assertEquals(1, cards.size)
+        assertEquals(8L, cards.single().id)
+        assertEquals("done", cards.single().summary)
     }
 
     @Test fun `streaming deltas become one assistant bubble`() = runTest(UnconfinedTestDispatcher()) {

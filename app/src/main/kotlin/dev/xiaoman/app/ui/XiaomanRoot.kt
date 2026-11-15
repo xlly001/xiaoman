@@ -2,6 +2,7 @@ package dev.xiaoman.app.ui
 
 import androidx.annotation.StringRes
 import androidx.compose.foundation.background
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.consumeWindowInsets
@@ -27,10 +28,25 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalDensity
 import dev.xiaoman.app.AppGraph
 import dev.xiaoman.app.R
+
+/** Open Muse wash: cool blue at the top fading through lilac into warm peach at the bottom. */
+private val MuseLightWash = listOf(
+    Color(0xFFBBD8F2),
+    Color(0xFFD5E4F4),
+    Color(0xFFECE7EC),
+    Color(0xFFF8E3CE),
+)
+private val MuseDarkWash = listOf(
+    Color(0xFF16293B),
+    Color(0xFF1B2836),
+    Color(0xFF26242E),
+    Color(0xFF302628),
+)
 
 enum class Tab(@StringRes val label: Int, val icon: ImageVector) {
     CHAT(R.string.nav_chat, Icons.AutoMirrored.Filled.Chat),
@@ -44,7 +60,7 @@ enum class Tab(@StringRes val label: Int, val icon: ImageVector) {
 }
 
 @Composable
-fun XiaomanRoot(graph: AppGraph) {
+fun XiaomanRoot(graph: AppGraph, darkTheme: Boolean = isSystemInDarkTheme()) {
     var tab by rememberSaveable { mutableStateOf(Tab.CHAT) }
     /** One draft shared by the dock on every tab. */
     var draft by rememberSaveable { mutableStateOf("") }
@@ -59,16 +75,20 @@ fun XiaomanRoot(graph: AppGraph) {
         }
     }
     val keyboardOpen = WindowInsets.ime.getBottom(LocalDensity.current) > 0
-    Scaffold(containerColor = MaterialTheme.colorScheme.background) { padding ->
+    // Follow the app's own theme, not the system one: picking "深色" in Settings must
+    // switch the full-screen wash too, otherwise dark cards sit on a light blue background.
+    val wash = if (darkTheme) MuseDarkWash else MuseLightWash
+    Scaffold(containerColor = Color.Transparent) { padding ->
         Box(
             Modifier.fillMaxSize()
-                // Soft blue wash at the top, like the reference app; cards stay white on top.
+                // One continuous wash behind every tab: blue -> lilac -> peach. Nothing is
+                // painted over it, so cards and scrolling messages sit directly on the gradient.
                 .background(
                     Brush.verticalGradient(
-                        listOf(
-                            MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.55f),
-                            MaterialTheme.colorScheme.background,
-                        ),
+                        0.0f to wash[0],
+                        0.42f to wash[1],
+                        0.74f to wash[2],
+                        1.0f to wash[3],
                     ),
                 )
                 .padding(padding)

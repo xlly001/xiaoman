@@ -126,6 +126,36 @@ $env:ANDROID_HOME = 'D:\Android\sdk'  # Android SDK 35
 The APK is written to `app/build/outputs/apk/debug/app-debug.apk`. The debug manifest allows cleartext
 HTTP for local vLLM/Ollama endpoints (e.g. `http://127.0.0.1:11434/v1`); release keeps HTTPS only.
 
+**JDK 17 is required**: Java 21+ (reproduced on 25.0.1) makes Kotlin 2.1's `JavaVersion.parse`
+throw `IllegalArgumentException: 25.0.1` before compilation even starts.
+
+## Emulator end-to-end checks (no real API key needed)
+
+`scripts/e2e/` is a stdlib-only Python toolkit. With the `xiaoman35` AVD (API 35) it exercises
+streaming chat, the task queue and checkpoint resume without any real model.
+
+```bash
+python scripts/e2e/fake_llm_server.py --port 8765 --log-file build/e2e/requests.jsonl
+python scripts/e2e/setup_model.py          # inject http://10.0.2.2:8765/v1 and two fake models
+python scripts/e2e/adb_ui.py a11y --on     # bind the accessibility service
+python scripts/e2e/adb_ui.py dump          # locate Compose nodes by text / content-desc
+```
+
+- `fake_llm_server.py`: `/v1/models`, `/v1/chat/completions` (SSE or JSON), `/control`,
+  `/control/reset`, `/log`, `/health`. `response_delay_ms` applies to **every** request,
+  including non-streaming operator calls, so queued / paused / resumed states stay observable.
+  API keys are redacted in the request log.
+- `adb_ui.py`: `dump / tap / type / key / wait / shot / log / a11y`. **`uiautomator dump` resets the
+  accessibility secure settings to 0/null and unbinds Xiaoman's service**; the helper re-enables it
+  and waits for the system to rebind whenever it was enabled before the dump.
+- Debug broadcasts (debug builds only): `dev.xiaoman.debug.ENQUEUE` (`--es goal`),
+  `QUEUE_PAUSE` / `QUEUE_RESUME` / `QUEUE_CANCEL` (`--es id`), `QUEUE_STATUS`. Queue state can also
+  be read directly from `chat/queue.json` and `chat/tasks.json`.
+
+> Avoid `uiautomator dump` while a task is running: unbinding the service makes a screen-reading
+> step fail with "accessibility service not enabled". Prefer broadcasts + files + logcat for
+> queue / stop / resume checks.
+
 ## Skills and developer CLI
 
 - Format: [docs/skills.md](docs/skills.md); examples in [skills/examples/](skills/examples/).

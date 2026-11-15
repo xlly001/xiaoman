@@ -1,7 +1,9 @@
 package dev.xiaoman.app.ui
 
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -30,7 +32,9 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -44,6 +48,8 @@ import java.time.format.DateTimeFormatter
 
 /** One page of the diary: everything Xiaoman did on a single day. */
 private data class DiaryDay(val date: LocalDate, val entries: List<DiaryEntry>)
+
+private val weekdayLabel = DateTimeFormatter.ofPattern("EEE")
 
 private fun daysOf(entries: List<DiaryEntry>): List<DiaryDay> {
     val zone = ZoneId.systemDefault()
@@ -63,15 +69,30 @@ fun DiaryScreen(graph: AppGraph) {
     val days = remember(entries) { daysOf(entries) }
 
     Column(Modifier.fillMaxSize().padding(bottom = DockSpace)) {
+        // Open Muse persona header: round avatar, name and a short companion line.
         Column(
-            Modifier.fillMaxWidth().padding(start = 18.dp, end = 18.dp, top = 14.dp, bottom = 8.dp),
-            verticalArrangement = Arrangement.spacedBy(2.dp),
+            Modifier.fillMaxWidth().padding(top = 16.dp, bottom = 12.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
         ) {
-            Text(stringResource(R.string.diary_title), style = MaterialTheme.typography.headlineMedium)
+            Image(
+                painter = painterResource(R.drawable.avatar_xiaoman),
+                contentDescription = null,
+                modifier = Modifier
+                    .size(112.dp)
+                    .clip(CircleShape)
+                    .border(3.dp, MaterialTheme.colorScheme.surface.copy(alpha = 0.9f), CircleShape),
+            )
+            Spacer(Modifier.height(10.dp))
+            Text(
+                stringResource(R.string.app_name),
+                style = MaterialTheme.typography.headlineMedium,
+                fontWeight = FontWeight.Bold,
+            )
             Text(
                 stringResource(R.string.diary_subtitle),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(top = 2.dp, start = 24.dp, end = 24.dp),
             )
         }
         if (days.isEmpty()) {
@@ -80,7 +101,7 @@ fun DiaryScreen(graph: AppGraph) {
             val pager = rememberPagerState(pageCount = { days.size })
             HorizontalPager(
                 state = pager,
-                modifier = Modifier.weight(1f).fillMaxWidth(),
+                modifier = Modifier.fillMaxWidth().height(330.dp),
                 contentPadding = PaddingValues(horizontal = 18.dp),
                 pageSpacing = 12.dp,
             ) { page ->
@@ -136,17 +157,45 @@ private fun DiaryDayCard(day: DiaryDay) {
     Surface(
         modifier = Modifier.fillMaxSize(),
         shape = RoundedCornerShape(28.dp),
-        color = MaterialTheme.colorScheme.surface,
+        // Semi-transparent so the blue-to-peach wash shows through, like the reference deck.
+        color = MaterialTheme.colorScheme.surface.copy(alpha = 0.72f),
         border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
         shadowElevation = 2.dp,
     ) {
         Column(Modifier.fillMaxSize().padding(20.dp)) {
-            Text(dayLabel(day.date), style = MaterialTheme.typography.headlineSmall)
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Surface(
+                    shape = RoundedCornerShape(12.dp),
+                    color = MaterialTheme.colorScheme.surface.copy(alpha = 0.92f),
+                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+                ) {
+                    Column(
+                        Modifier.padding(horizontal = 11.dp, vertical = 5.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                    ) {
+                        Text(
+                            weekdayLabel.format(day.date).uppercase(),
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.primary,
+                        )
+                        Text(
+                            day.date.dayOfMonth.toString(),
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold,
+                        )
+                    }
+                }
+                Text(
+                    dayLabel(day.date),
+                    style = MaterialTheme.typography.headlineSmall,
+                    modifier = Modifier.padding(start = 12.dp).weight(1f),
+                )
+            }
             Text(
                 stringResource(R.string.diary_count, day.entries.size),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.padding(top = 2.dp),
+                modifier = Modifier.padding(top = 8.dp),
             )
             HorizontalDivider(
                 modifier = Modifier.padding(vertical = 14.dp),
