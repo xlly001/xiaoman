@@ -198,16 +198,6 @@ fun ChatScreen(
                 }
             }
         }
-        // Only the approval card floats above the dock. The composer already turns its
-        // mic into a stop button while busy, so a separate "processing" strip is redundant.
-        if (approval != null) {
-            Column(
-                Modifier.align(Alignment.BottomCenter).fillMaxWidth()
-                    .padding(bottom = if (keyboardOpen) 56.dp else DockSpace),
-            ) {
-                ApprovalCard(approval!!, session)
-            }
-        }
         // Only the three glass controls, floating on a frosted-to-transparent scrim.
         Box(
             Modifier.align(Alignment.TopCenter)

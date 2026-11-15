@@ -43,6 +43,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.zIndex
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dev.xiaoman.app.AppGraph
 import dev.xiaoman.app.R
@@ -102,6 +103,8 @@ fun XiaomanRoot(graph: AppGraph, darkTheme: Boolean = isSystemInDarkTheme()) {
     // Never build the other pages while a reply is streaming: that is the one moment the main
     // thread is already busy and an extra composition would show up as a stutter.
     val busy by graph.session.busy.collectAsStateWithLifecycle()
+    val approval by graph.session.approval.collectAsStateWithLifecycle()
+    val question by graph.session.question.collectAsStateWithLifecycle()
     val context = LocalContext.current
     // A failed read-aloud used to be log-only, so a phone with no TTS voice data looked like a
     // silent no-op. Surface the reason once and let the user act on it.
@@ -235,6 +238,16 @@ fun XiaomanRoot(graph: AppGraph, darkTheme: Boolean = isSystemInDarkTheme()) {
                     activeTaskId = openTaskId,
                 )
             }
+            // Agent-initiated interruptions grow out of the top "小满" capsule and sit above
+            // every page, task thread and the search sheet, so an approval can never hide behind
+            // a kept-alive tab again.
+            XiaomanIsland(
+                approval = approval,
+                question = question,
+                session = graph.session,
+                modifier = Modifier.align(Alignment.TopCenter).zIndex(20f),
+                onAnswerQuestion = { searchOpen = false },
+            )
         }
     }
 }

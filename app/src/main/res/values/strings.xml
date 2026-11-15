@@ -18,6 +18,8 @@
     <string name="chat_send">发送</string>
     <string name="chat_stop">停止</string>
     <string name="chat_question_label">小满问</string>
+    <string name="question_island_title">小满在问你</string>
+    <string name="question_island_answer">去回答</string>
     <string name="chat_takeover_label">需要你接管</string>
     <string name="chat_error_label">出错了</string>
     <string name="banner_accessibility">无障碍服务未开启，小满还不能操作其他 App。</string>
