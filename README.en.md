@@ -54,9 +54,15 @@ grey bubbles, one blue accent, 22dp cards, system sans-serif) and these addition
   the composer, and the bookmark button saves the current draft as a shortcut.
 - **Voice input**: the composer microphone uses the system speech recognizer; recording permission and
   recognizer failures produce readable messages.
+- **Human-friendly model setup**: pick a provider (Volcano Ark, OpenAI, DeepSeek, Alibaba Bailian,
+  Zhipu, Kimi, SiliconFlow, OpenRouter or custom), enter one key, and tap “Fetch available models” to
+  read the provider’s `/models`. Each model expands to display name, max output, context window,
+  temperature and vision support; choose one for chat and one for operation, then save the whole list.
 - **Model self-check**: Settings can probe the chat and operator models separately. The operator probe
   includes a 1×1 PNG so a text-only model cannot pass; 401, 404, 429 and network failures get specific
   guidance.
+- **More settings**: theme (system/light/dark), send voice transcripts automatically, request timeout,
+  open accessibility settings, clear conversation, clear traces, and version/local-data information.
 - **Skill and memory management**: search, details, create and one-sentence edit on the Skills screen;
   `skill_read` / `skill_save` / `skill_delete` write user skills only after an explicit chat confirmation.
   The Memory screen can create, edit and delete notes.
@@ -72,7 +78,8 @@ $env:ANDROID_HOME = 'D:\Android\sdk'  # Android SDK 35
 .\gradlew.bat :core-llm:test :core-agent:test :core-skills:test :app:testDebugUnitTest
 ```
 
-The APK is written to `app/build/outputs/apk/debug/app-debug.apk`.
+The APK is written to `app/build/outputs/apk/debug/app-debug.apk`. The debug manifest allows cleartext
+HTTP for local vLLM/Ollama endpoints (e.g. `http://127.0.0.1:11434/v1`); release keeps HTTPS only.
 
 ## Skills and developer CLI
 

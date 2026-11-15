@@ -17,6 +17,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import android.widget.Toast
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material.icons.filled.Refresh
@@ -38,9 +39,11 @@ import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.style.TextOverflow
@@ -94,6 +97,9 @@ fun SkillsScreen(graph: AppGraph, onAuthorSkill: (String) -> Unit) {
     val state by vm.state.collectAsStateWithLifecycle()
     var query by remember { mutableStateOf("") }
     var detail by remember { mutableStateOf<Skill?>(null) }
+    var deleteTarget by remember { mutableStateOf<Skill?>(null) }
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
     val newSkillPrompt = stringResource(R.string.skills_new_prompt)
     val lifecycleOwner = LocalLifecycleOwner.current
     var skipFirstResume by remember { mutableStateOf(true) }
@@ -196,6 +202,11 @@ fun SkillsScreen(graph: AppGraph, onAuthorSkill: (String) -> Unit) {
                             TextButton(onClick = { onAuthorSkill(editPrompt) }) {
                                 Text(stringResource(R.string.skills_edit))
                             }
+                            if (mine) {
+                                TextButton(onClick = { deleteTarget = skill }) {
+                                    Text(stringResource(R.string.delete), color = MaterialTheme.colorScheme.error)
+                                }
+                            }
                         }
                     }
                 }
@@ -227,6 +238,26 @@ fun SkillsScreen(graph: AppGraph, onAuthorSkill: (String) -> Unit) {
             detail = null
             onAuthorSkill(openedPrompt)
         })
+    }
+    deleteTarget?.let { skill ->
+        AlertDialog(
+            onDismissRequest = { deleteTarget = null },
+            title = { Text(stringResource(R.string.skills_delete_title), style = MaterialTheme.typography.titleLarge) },
+            text = { Text(stringResource(R.string.skills_delete_message, skill.name)) },
+            confirmButton = {
+                TextButton(onClick = {
+                    deleteTarget = null
+                    scope.launch {
+                        val ok = runCatching { graph.userSkillStore.delete(skill.name) }.getOrDefault(false)
+                        if (!ok) Toast.makeText(context, R.string.skills_delete_failed, Toast.LENGTH_SHORT).show()
+                        vm.reload()
+                    }
+                }) {
+                    Text(stringResource(R.string.skills_delete_confirm), color = MaterialTheme.colorScheme.error)
+                }
+            },
+            dismissButton = { TextButton(onClick = { deleteTarget = null }) { Text(stringResource(R.string.cancel)) } },
+        )
     }
 }
 

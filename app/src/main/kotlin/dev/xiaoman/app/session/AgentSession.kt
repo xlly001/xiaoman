@@ -68,6 +68,8 @@ class AgentSession(
     private val ready: suspend () -> Unit = {},
     /** Optional local persistence; null keeps the conversation in memory (tests, web runs). */
     private val history: ChatHistoryStore? = null,
+    /** Localized event text; the default Chinese object keeps JVM tests and the web server unchanged. */
+    private val stepText: StepTextFormatter = StepText,
 ) : UserChannel, ApprovalGateway {
 
     private val restored = history?.load().orEmpty()
@@ -113,8 +115,8 @@ class AgentSession(
             }
         }
         if (event is AgentEvent.PhoneTaskFinished) onTaskEnd(event.taskId)
-        StepText.status(event)?.let { _status.value = it }
-        StepText.chatItem(event, ids.incrementAndGet())?.let(::add)
+        stepText.status(event)?.let { _status.value = it }
+        stepText.chatItem(event, ids.incrementAndGet())?.let(::add)
         _events.tryEmit(event)
     }
 

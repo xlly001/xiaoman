@@ -1,8 +1,11 @@
 package dev.xiaoman.app.ui
 
+import android.widget.Toast
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -18,6 +21,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.ListAlt
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.AutoAwesome
+import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.DeleteSweep
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Settings
@@ -40,7 +44,10 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
@@ -64,7 +71,7 @@ internal fun ChatHeader(
     onClearHistory: () -> Unit,
 ) {
     var menu by rememberSaveable { mutableStateOf(false) }
-    Box(Modifier.fillMaxWidth().padding(top = 12.dp, bottom = 4.dp)) {
+    Box(Modifier.fillMaxWidth().padding(top = 6.dp, bottom = 2.dp)) {
         Row(
             Modifier.fillMaxWidth().padding(horizontal = 16.dp),
             horizontalArrangement = Arrangement.SpaceBetween,
@@ -136,7 +143,7 @@ private fun GlassCircle(onClick: (() -> Unit)? = null, content: @Composable () -
             color = color,
             border = border,
             shadowElevation = 2.dp,
-            modifier = Modifier.size(44.dp),
+            modifier = Modifier.size(40.dp),
         ) {
             Box(contentAlignment = Alignment.Center, modifier = Modifier.fillMaxSize()) { content() }
         }
@@ -146,7 +153,7 @@ private fun GlassCircle(onClick: (() -> Unit)? = null, content: @Composable () -
             color = color,
             border = border,
             shadowElevation = 2.dp,
-            modifier = Modifier.size(44.dp),
+            modifier = Modifier.size(40.dp),
         ) {
             Box(contentAlignment = Alignment.Center, modifier = Modifier.fillMaxSize()) { content() }
         }
@@ -161,19 +168,19 @@ internal fun ChatWelcome(
     onDelete: (QuickCommand) -> Unit,
     onAdd: () -> Unit,
 ) {
-    Column(Modifier.fillMaxWidth().padding(top = 18.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+    Column(Modifier.fillMaxWidth().padding(top = 6.dp), verticalArrangement = Arrangement.spacedBy(7.dp)) {
         Text(
             stringResource(R.string.app_tagline),
-            style = MaterialTheme.typography.labelLarge,
+            style = MaterialTheme.typography.labelMedium,
             color = MaterialTheme.colorScheme.primary,
         )
-        Text(stringResource(R.string.chat_greeting), style = MaterialTheme.typography.displaySmall)
+        Text(stringResource(R.string.chat_greeting), style = MaterialTheme.typography.headlineMedium)
         Text(
             stringResource(R.string.chat_greeting_hint),
-            style = MaterialTheme.typography.bodyMedium,
+            style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
-        Spacer(Modifier.size(10.dp))
+        Spacer(Modifier.size(2.dp))
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text(
                 stringResource(R.string.quick_title),
@@ -189,9 +196,9 @@ internal fun ChatWelcome(
         QuickCommandGrid(commands, onRun, onEdit, onDelete)
         Text(
             stringResource(R.string.chat_greeting_footer),
-            style = MaterialTheme.typography.bodySmall,
+            style = MaterialTheme.typography.labelSmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.padding(top = 6.dp),
+            modifier = Modifier.padding(top = 1.dp),
         )
     }
 }
@@ -262,14 +269,25 @@ internal fun ProcessCard(entries: List<ChatItem.Progress>) {
     }
 }
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 internal fun ChatMessage(item: ChatItem) {
+    val clipboard = LocalClipboardManager.current
+    val context = LocalContext.current
+    val copied = stringResource(R.string.chat_copied)
+    fun copy(text: String) {
+        clipboard.setText(AnnotatedString(text))
+        Toast.makeText(context, copied, Toast.LENGTH_SHORT).show()
+    }
     when (item) {
         is ChatItem.User -> Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
             Surface(
                 color = MaterialTheme.colorScheme.primaryContainer,
                 shape = RoundedCornerShape(22.dp),
-                modifier = Modifier.fillMaxWidth(0.87f),
+                modifier = Modifier.fillMaxWidth(0.87f).combinedClickable(
+                    onClick = {},
+                    onLongClick = { copy(item.text) },
+                ),
             ) {
                 Text(
                     item.text,
@@ -279,13 +297,24 @@ internal fun ChatMessage(item: ChatItem) {
                 )
             }
         }
-        is ChatItem.Assistant -> Row(Modifier.fillMaxWidth()) {
+        is ChatItem.Assistant -> Column(verticalArrangement = Arrangement.spacedBy(1.dp)) {
             Surface(
                 color = MaterialTheme.colorScheme.surfaceContainer,
                 shape = RoundedCornerShape(22.dp),
-                modifier = Modifier.fillMaxWidth(0.94f),
+                modifier = Modifier.fillMaxWidth(0.94f).combinedClickable(
+                    onClick = {},
+                    onLongClick = { copy(item.text) },
+                ),
             ) {
                 Text(chatRichText(item.text), Modifier.padding(horizontal = 16.dp, vertical = 12.dp), style = MaterialTheme.typography.bodyMedium)
+            }
+            IconButton(onClick = { copy(item.text) }, modifier = Modifier.size(28.dp)) {
+                Icon(
+                    Icons.Filled.ContentCopy,
+                    contentDescription = stringResource(R.string.chat_copy),
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.size(14.dp),
+                )
             }
         }
         is ChatItem.Question -> NoticeCard(

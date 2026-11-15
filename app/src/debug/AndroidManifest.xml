@@ -1,6 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
-    <application>
+    <application android:usesCleartextTraffic="true">
+        <!-- Debug-only: allow local vLLM/Ollama endpoints over http for development and tests. -->
         <!-- Developer bridge for the xiaoman CLI (adb shell am broadcast). Debug builds only. -->
         <receiver
             android:name=".debug.DebugReceiver"

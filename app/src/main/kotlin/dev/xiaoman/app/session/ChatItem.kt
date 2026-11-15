@@ -32,9 +32,16 @@ sealed class ChatItem {
     data class Error(override val id: Long, val text: String) : ChatItem()
 }
 
-/** Human-readable (Chinese) text for agent events, used by the chat list and the status overlay. */
-object StepText {
-    fun action(action: Action): String = when (action) {
+/** Turns agent events into localized UI text. Tests and the web server use the Chinese default. */
+interface StepTextFormatter {
+    fun action(action: Action): String
+    fun status(event: AgentEvent): String?
+    fun chatItem(event: AgentEvent, id: Long): ChatItem?
+}
+
+/** Human-readable Chinese text for agent events, used when no Android resources are available. */
+object StepText : StepTextFormatter {
+    override fun action(action: Action): String = when (action) {
         is Action.Tap -> "点击" + where(action.target, action.nodeId)
         is Action.LongPress -> "长按" + where(action.target, action.nodeId)
         is Action.Swipe -> "滑动" + where(action.target, null)
@@ -55,7 +62,7 @@ object StepText {
     }
 
     /** Overlay / notification status for [event], or null to keep the previous one. */
-    fun status(event: AgentEvent): String? = when (event) {
+    override fun status(event: AgentEvent): String? = when (event) {
         is AgentEvent.PhoneTaskStarted -> "开始：${event.goal}"
         is AgentEvent.StepPlanned -> "第 ${event.stepIndex + 1} 步：${action(event.action)}"
         is AgentEvent.StepBlocked -> "第 ${event.stepIndex + 1} 步已拦截"
@@ -65,7 +72,7 @@ object StepText {
     }
 
     /** The chat row for [event], or null when it only updates the status. */
-    fun chatItem(event: AgentEvent, id: Long): ChatItem? = when (event) {
+    override fun chatItem(event: AgentEvent, id: Long): ChatItem? = when (event) {
         is AgentEvent.Reply -> ChatItem.Assistant(id, event.text)
         is AgentEvent.SkillChosen -> ChatItem.Progress(id, "使用技能 ${event.skillName}")
         is AgentEvent.PhoneTaskStarted -> ChatItem.Progress(id, "开始手机任务：${event.goal}")

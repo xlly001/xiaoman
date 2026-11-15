@@ -141,6 +141,8 @@
     <string name="chat_stop_listening">停止语音输入</string>
     <string name="chat_listening">正在听，请说话…</string>
     <string name="chat_save_command">存为常用指令</string>
+    <string name="chat_copy">复制</string>
+    <string name="chat_copied">已复制</string>
     <string name="quick_title">常用指令</string>
     <string name="quick_add">新建指令</string>
     <string name="quick_dialog_add_title">新建常用指令</string>
@@ -164,6 +166,35 @@
     <string name="voice_network">语音识别需要网络，请检查网络后再试。</string>
     <string name="voice_error">语音输入失败，请重试或直接打字。</string>
 
+    <!-- Localized agent progress and task status -->
+    <string name="step_tap">点击</string>
+    <string name="step_long_press">长按</string>
+    <string name="step_swipe">滑动</string>
+    <string name="step_type">输入「%1$s」</string>
+    <string name="step_back">返回</string>
+    <string name="step_home">回到桌面</string>
+    <string name="step_launch">打开 %1$s</string>
+    <string name="step_open_link">打开链接 %1$s</string>
+    <string name="step_wait">等待 %1$d 毫秒</string>
+    <string name="step_ask">询问：%1$s</string>
+    <string name="step_finish">结束：%1$s</string>
+    <string name="status_start">开始：%1$s</string>
+    <string name="status_step">第 %1$d 步：%2$s</string>
+    <string name="status_blocked">第 %1$d 步已拦截</string>
+    <string name="status_takeover">请接管手机，完成后回到小满回复</string>
+    <string name="status_question">等待你回答：%1$s</string>
+    <string name="status_done">已完成</string>
+    <string name="status_not_done">未完成</string>
+    <string name="chat_skill_chosen">使用技能 %1$s</string>
+    <string name="chat_phone_start">开始手机任务：%1$s</string>
+    <string name="chat_step">%1$d. %2$s%3$s</string>
+    <string name="chat_step_failure">（%1$s）</string>
+    <string name="chat_step_blocked">%1$d. %2$s：已拦截（%3$s）</string>
+    <string name="chat_memory_updated">已更新记忆 %1$s</string>
+    <string name="chat_task_done">任务完成</string>
+    <string name="chat_task_not_done">任务未完成</string>
+    <string name="chat_task_result">%1$s（%2$d 步）：%3$s</string>
+
     <!-- Settings diagnostics and folder labels -->
     <string name="settings_intro">填好聊天模型和操作模型。操作模型必须支持图片输入，否则不能读屏操作手机。</string>
     <string name="settings_folder_skills_label">技能目录</string>
@@ -181,6 +212,82 @@
     <string name="settings_test_network">网络不可达或请求超时，请检查网络和 Base URL。</string>
     <string name="settings_test_invalid">请先把 Base URL、模型名、Key 和 Temperature 填对。</string>
 
+    <!-- Provider and automatic model catalog -->
+    <string name="settings_provider">模型服务</string>
+    <string name="settings_provider_label">服务商</string>
+    <string name="settings_fetch_models">获取可用模型</string>
+    <string name="settings_fetching">正在获取模型…</string>
+    <string name="settings_models_count">已获取 %1$d 个模型</string>
+    <string name="settings_models_unsupported">该厂商不支持模型列表接口，请点右上角「手动添加」填写模型 ID。</string>
+    <string name="settings_models_empty">还没有模型。填好 Key 后点「获取可用模型」，或手动添加模型 ID。</string>
+    <string name="settings_models_title">可用模型</string>
+    <string name="settings_manual_add">手动添加</string>
+    <string name="settings_manual_add_title">手动添加模型</string>
+    <string name="settings_manual_add_hint">输入厂商文档里的模型 ID，例如 gpt-4o、deepseek-chat 或 ep-xxxxxxxx。</string>
+    <string name="settings_model_id">模型 ID</string>
+    <string name="settings_model_name_label">显示名称</string>
+    <string name="settings_model_max_tokens">最大输出 tokens</string>
+    <string name="settings_model_context">上下文窗口</string>
+    <string name="settings_model_use_chat">设为聊天模型</string>
+    <string name="settings_model_use_operator">设为操作模型</string>
+    <string name="settings_model_test">测试</string>
+    <string name="settings_model_chat_selected">聊天</string>
+    <string name="settings_model_operator_selected">操作</string>
+    <string name="settings_model_vision">支持图片</string>
+    <string name="settings_model_non_chat">非对话模型</string>
+    <string name="settings_test_title">连接测试</string>
+    <string name="settings_test_chat">测试聊天模型</string>
+    <string name="settings_test_operator">测试操作模型</string>
+    <string name="settings_operator_vision_warning">操作模型需要支持图片输入，当前模型可能无法读屏。</string>
+    <string name="settings_save_all">保存所有模型与选择</string>
+    <string name="settings_saved_models">已保存 · %1$d 个模型</string>
+    <string name="settings_models_endpoint_missing">该厂商没有 /models 接口，请手动添加模型 ID。</string>
+    <string name="settings_fetch_failed">获取失败：%1$s</string>
+    <string name="add">添加</string>
+    <string name="provider_ark">火山方舟</string>
+    <string name="provider_ark_hint">Base URL 到 /api/v3；模型可能是接入点 ID（ep-…）</string>
+    <string name="provider_openai">OpenAI</string>
+    <string name="provider_openai_hint">Base URL 到 /v1；Key 以 sk- 开头</string>
+    <string name="provider_deepseek">DeepSeek</string>
+    <string name="provider_deepseek_hint">Base URL 到 /v1；模型如 deepseek-chat</string>
+    <string name="provider_dashscope">阿里云百炼</string>
+    <string name="provider_dashscope_hint">使用 OpenAI 兼容模式，Base URL 到 /compatible-mode/v1</string>
+    <string name="provider_zhipu">智谱 GLM</string>
+    <string name="provider_zhipu_hint">Base URL 到 /api/paas/v4；模型如 glm-4-plus</string>
+    <string name="provider_moonshot">月之暗面 Kimi</string>
+    <string name="provider_moonshot_hint">Base URL 到 /v1；模型如 moonshot-v1-8k</string>
+    <string name="provider_siliconflow">硅基流动</string>
+    <string name="provider_siliconflow_hint">Base URL 到 /v1；模型广场里的名称即可</string>
+    <string name="provider_openrouter">OpenRouter</string>
+    <string name="provider_openrouter_hint">Base URL 到 /api/v1；模型如 openai/gpt-4o</string>
+    <string name="provider_custom">自定义</string>
+    <string name="provider_custom_hint">填任何 OpenAI 兼容的 /v1 地址，例如本地 vLLM 或 Ollama</string>
+
+    <!-- Appearance, voice, advanced and about -->
+    <string name="settings_appearance">外观</string>
+    <string name="settings_theme">主题</string>
+    <string name="settings_theme_system">跟随系统</string>
+    <string name="settings_theme_light">浅色</string>
+    <string name="settings_theme_dark">深色</string>
+    <string name="settings_voice">语音</string>
+    <string name="settings_voice_auto_send">识别后自动发送</string>
+    <string name="settings_voice_auto_send_hint">关闭时只把识别结果填入输入框，发送前还能修改。</string>
+    <string name="settings_advanced">高级与数据</string>
+    <string name="settings_request_timeout">请求超时（秒）</string>
+    <string name="settings_request_timeout_hint">10–300 秒；网络慢或操作模型思考久时可调大。</string>
+    <string name="settings_open_accessibility">打开无障碍设置</string>
+    <string name="settings_clear_chat">清空会话</string>
+    <string name="settings_clear_traces">清空轨迹</string>
+    <string name="settings_clear_chat_title">清空会话记录？</string>
+    <string name="settings_clear_chat_message">只删除本机聊天记录，记忆、技能和模型配置不受影响。</string>
+    <string name="settings_clear_chat_confirm">清空</string>
+    <string name="settings_clear_traces_title">清空轨迹文件？</string>
+    <string name="settings_clear_traces_message">会删除调试用的任务轨迹，不影响记忆和技能。</string>
+    <string name="settings_clear_traces_confirm">清空</string>
+    <string name="settings_about">关于</string>
+    <string name="settings_version">版本 %1$s</string>
+    <string name="settings_about_body">小满把模型配置、会话、记忆和技能保存在本机；API Key 使用系统加密存储，不上传到第三方服务器。</string>
+
     <!-- Skill details and authoring handoff -->
     <string name="skills_search_hint">搜索技能</string>
     <string name="skills_new">新建技能</string>
@@ -197,6 +304,10 @@
     <string name="skills_instructions_label">技能说明</string>
     <string name="skills_new_prompt">帮我新建一个技能。请先问我四个问题：什么时候开始、一步步做什么、怎么检查、哪一步需要我确认。写好后先把 SKILL.md 给我看，我回复“确认”再保存。</string>
     <string name="skills_edit_prompt">我想修改技能 %1$s。先用 skill_read 读一下现有内容，再问我希望怎么改；把改好的 SKILL.md 给我看，我回复“确认”再保存。</string>
+    <string name="skills_delete_title">删除这个技能？</string>
+    <string name="skills_delete_message">「%1$s」会从我的技能目录删除；如果它是内置技能的同名覆盖版，内置版本会重新出现。</string>
+    <string name="skills_delete_confirm">删除</string>
+    <string name="skills_delete_failed">删除失败，请检查技能目录权限。</string>
 
     <!-- Memory editing -->
     <string name="memory_new">新建记忆</string>

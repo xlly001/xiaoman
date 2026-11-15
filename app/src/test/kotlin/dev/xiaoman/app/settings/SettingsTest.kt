@@ -61,4 +61,18 @@ class SettingsTest {
         assertNull(form.copy(chat = form.chat.copy(temperature = "hot")).toSettings())
         assertNull(form.copy(chat = form.chat.copy(temperature = "")).toSettings()?.chat?.temperature)
     }
+
+    @Test fun `catalog, theme, voice and timeout round trip`() {
+        val rich = sample.copy(
+            chat = sample.chat.copy(timeoutSeconds = 180),
+            operator = sample.operator.copy(timeoutSeconds = 180),
+            providerId = Providers.deepseek.id,
+            models = listOf(ModelDefaults.profile("deepseek-chat"), ModelDefaults.profile("gpt-4o")),
+            themeMode = AppSettings.THEME_DARK,
+            voiceAutoSend = true,
+            requestTimeoutSeconds = 180,
+        )
+        store().save(rich)
+        assertEquals(rich, store().current)
+    }
 }

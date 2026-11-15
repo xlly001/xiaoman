@@ -90,14 +90,14 @@ fun XiaomanRoot(graph: AppGraph) {
 /** A soft floating pill instead of a hard Material navigation bar. */
 @Composable
 private fun MuseNavigationBar(selected: Tab, onSelect: (Tab) -> Unit) {
-    Box(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 10.dp)) {
+    Box(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 6.dp)) {
         Surface(
             shape = RoundedCornerShape(28.dp),
             color = MaterialTheme.colorScheme.surface,
             border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
             shadowElevation = 10.dp,
         ) {
-            Row(Modifier.fillMaxWidth().padding(6.dp), verticalAlignment = Alignment.CenterVertically) {
+            Row(Modifier.fillMaxWidth().padding(4.dp), verticalAlignment = Alignment.CenterVertically) {
                 Tab.entries.forEach { item ->
                     val active = item == selected
                     val background by animateColorAsState(
@@ -114,7 +114,7 @@ private fun MuseNavigationBar(selected: Tab, onSelect: (Tab) -> Unit) {
                             .clip(RoundedCornerShape(22.dp))
                             .background(background)
                             .selectable(selected = active, onClick = { onSelect(item) }, role = Role.Tab)
-                            .padding(vertical = 7.dp),
+                            .padding(vertical = 5.dp),
                         horizontalAlignment = Alignment.CenterHorizontally,
                     ) {
                         Icon(item.icon, contentDescription = null, tint = tint, modifier = Modifier.size(20.dp))

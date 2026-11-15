@@ -141,6 +141,8 @@
     <string name="chat_stop_listening">Stop voice input</string>
     <string name="chat_listening">Listening… speak now</string>
     <string name="chat_save_command">Save as shortcut</string>
+    <string name="chat_copy">Copy</string>
+    <string name="chat_copied">Copied</string>
     <string name="quick_title">Shortcuts</string>
     <string name="quick_add">New shortcut</string>
     <string name="quick_dialog_add_title">New shortcut</string>
@@ -164,6 +166,35 @@
     <string name="voice_network">Speech recognition needs a network. Check your connection and try again.</string>
     <string name="voice_error">Voice input failed. Try again or type instead.</string>
 
+    <!-- Localized agent progress and task status -->
+    <string name="step_tap">Tap</string>
+    <string name="step_long_press">Long press</string>
+    <string name="step_swipe">Swipe</string>
+    <string name="step_type">Type “%1$s”</string>
+    <string name="step_back">Back</string>
+    <string name="step_home">Go home</string>
+    <string name="step_launch">Open %1$s</string>
+    <string name="step_open_link">Open link %1$s</string>
+    <string name="step_wait">Wait %1$d ms</string>
+    <string name="step_ask">Ask: %1$s</string>
+    <string name="step_finish">Finish: %1$s</string>
+    <string name="status_start">Start: %1$s</string>
+    <string name="status_step">Step %1$d: %2$s</string>
+    <string name="status_blocked">Step %1$d blocked</string>
+    <string name="status_takeover">Take over the phone, then reply to Xiaoman when done</string>
+    <string name="status_question">Waiting for your answer: %1$s</string>
+    <string name="status_done">Done</string>
+    <string name="status_not_done">Not finished</string>
+    <string name="chat_skill_chosen">Using skill %1$s</string>
+    <string name="chat_phone_start">Starting phone task: %1$s</string>
+    <string name="chat_step">%1$d. %2$s%3$s</string>
+    <string name="chat_step_failure"> (%1$s)</string>
+    <string name="chat_step_blocked">%1$d. %2$s: blocked (%3$s)</string>
+    <string name="chat_memory_updated">Memory updated: %1$s</string>
+    <string name="chat_task_done">Task complete</string>
+    <string name="chat_task_not_done">Task not finished</string>
+    <string name="chat_task_result">%1$s (%2$d steps): %3$s</string>
+
     <!-- Settings diagnostics and folder labels -->
     <string name="settings_intro">Configure both the chat model and the operator model. The operator model must accept images, otherwise it cannot read the screen.</string>
     <string name="settings_folder_skills_label">Skills folder</string>
@@ -181,6 +212,82 @@
     <string name="settings_test_network">Network unreachable or the request timed out. Check the connection and Base URL.</string>
     <string name="settings_test_invalid">Fill in a valid Base URL, model name, key and temperature first.</string>
 
+    <!-- Provider and automatic model catalog -->
+    <string name="settings_provider">Model service</string>
+    <string name="settings_provider_label">Provider</string>
+    <string name="settings_fetch_models">Fetch available models</string>
+    <string name="settings_fetching">Fetching models…</string>
+    <string name="settings_models_count">%1$d models fetched</string>
+    <string name="settings_models_unsupported">This provider has no model-list endpoint. Use “Manual add” to enter a model ID.</string>
+    <string name="settings_models_empty">No models yet. Fill in the key and tap “Fetch available models”, or add a model ID manually.</string>
+    <string name="settings_models_title">Available models</string>
+    <string name="settings_manual_add">Manual add</string>
+    <string name="settings_manual_add_title">Add a model manually</string>
+    <string name="settings_manual_add_hint">Enter the model ID from the provider docs, e.g. gpt-4o, deepseek-chat or ep-xxxxxxxx.</string>
+    <string name="settings_model_id">Model ID</string>
+    <string name="settings_model_name_label">Display name</string>
+    <string name="settings_model_max_tokens">Max output tokens</string>
+    <string name="settings_model_context">Context window</string>
+    <string name="settings_model_use_chat">Use for chat</string>
+    <string name="settings_model_use_operator">Use for operation</string>
+    <string name="settings_model_test">Test</string>
+    <string name="settings_model_chat_selected">Chat</string>
+    <string name="settings_model_operator_selected">Operator</string>
+    <string name="settings_model_vision">Vision</string>
+    <string name="settings_model_non_chat">Not a chat model</string>
+    <string name="settings_test_title">Connection test</string>
+    <string name="settings_test_chat">Test chat model</string>
+    <string name="settings_test_operator">Test operator model</string>
+    <string name="settings_operator_vision_warning">The operator model needs image input; this one may not be able to read the screen.</string>
+    <string name="settings_save_all">Save all models and selection</string>
+    <string name="settings_saved_models">Saved · %1$d models</string>
+    <string name="settings_models_endpoint_missing">This provider has no /models endpoint. Add the model ID manually.</string>
+    <string name="settings_fetch_failed">Fetch failed: %1$s</string>
+    <string name="add">Add</string>
+    <string name="provider_ark">Volcano Ark</string>
+    <string name="provider_ark_hint">Base URL ends at /api/v3; the model may be an endpoint ID (ep-…)</string>
+    <string name="provider_openai">OpenAI</string>
+    <string name="provider_openai_hint">Base URL ends at /v1; keys start with sk-</string>
+    <string name="provider_deepseek">DeepSeek</string>
+    <string name="provider_deepseek_hint">Base URL ends at /v1; model e.g. deepseek-chat</string>
+    <string name="provider_dashscope">Alibaba Bailian</string>
+    <string name="provider_dashscope_hint">Use OpenAI-compatible mode; Base URL ends at /compatible-mode/v1</string>
+    <string name="provider_zhipu">Zhipu GLM</string>
+    <string name="provider_zhipu_hint">Base URL ends at /api/paas/v4; model e.g. glm-4-plus</string>
+    <string name="provider_moonshot">Moonshot Kimi</string>
+    <string name="provider_moonshot_hint">Base URL ends at /v1; model e.g. moonshot-v1-8k</string>
+    <string name="provider_siliconflow">SiliconFlow</string>
+    <string name="provider_siliconflow_hint">Base URL ends at /v1; use the model name from the catalog</string>
+    <string name="provider_openrouter">OpenRouter</string>
+    <string name="provider_openrouter_hint">Base URL ends at /api/v1; model e.g. openai/gpt-4o</string>
+    <string name="provider_custom">Custom</string>
+    <string name="provider_custom_hint">Any OpenAI-compatible /v1 endpoint, such as local vLLM or Ollama</string>
+
+    <!-- Appearance, voice, advanced and about -->
+    <string name="settings_appearance">Appearance</string>
+    <string name="settings_theme">Theme</string>
+    <string name="settings_theme_system">System</string>
+    <string name="settings_theme_light">Light</string>
+    <string name="settings_theme_dark">Dark</string>
+    <string name="settings_voice">Voice</string>
+    <string name="settings_voice_auto_send">Send after recognition</string>
+    <string name="settings_voice_auto_send_hint">When off, the transcript only fills the composer so you can edit it before sending.</string>
+    <string name="settings_advanced">Advanced and data</string>
+    <string name="settings_request_timeout">Request timeout (seconds)</string>
+    <string name="settings_request_timeout_hint">10–300 seconds; increase it for slow networks or long operator reasoning.</string>
+    <string name="settings_open_accessibility">Open accessibility settings</string>
+    <string name="settings_clear_chat">Clear conversation</string>
+    <string name="settings_clear_traces">Clear traces</string>
+    <string name="settings_clear_chat_title">Clear conversation history?</string>
+    <string name="settings_clear_chat_message">Only local chat rows are deleted. Memory, skills and model settings are untouched.</string>
+    <string name="settings_clear_chat_confirm">Clear</string>
+    <string name="settings_clear_traces_title">Clear trace files?</string>
+    <string name="settings_clear_traces_message">Debug task traces are deleted; memory and skills are untouched.</string>
+    <string name="settings_clear_traces_confirm">Clear</string>
+    <string name="settings_about">About</string>
+    <string name="settings_version">Version %1$s</string>
+    <string name="settings_about_body">Xiaoman keeps model settings, conversations, memory and skills on this phone. API keys use system encrypted storage and are never uploaded to a third-party server.</string>
+
     <!-- Skill details and authoring handoff -->
     <string name="skills_search_hint">Search skills</string>
     <string name="skills_new">New skill</string>
@@ -197,6 +304,10 @@
     <string name="skills_instructions_label">Instructions</string>
     <string name="skills_new_prompt">Help me create a skill. First ask me the four questions: when it starts, what to do step by step, how to check the result, and which step needs my confirmation. Show me the SKILL.md first; only save after I reply “confirm”.</string>
     <string name="skills_edit_prompt">I want to change the skill %1$s. Read the current content with skill_read first, ask me what to change, then show me the updated SKILL.md; only save after I reply “confirm”.</string>
+    <string name="skills_delete_title">Delete this skill?</string>
+    <string name="skills_delete_message">“%1$s” will be removed from your skills folder. If it overrides a bundled skill, the bundled version appears again.</string>
+    <string name="skills_delete_confirm">Delete</string>
+    <string name="skills_delete_failed">Delete failed. Check the skills folder permission.</string>
 
     <!-- Memory editing -->
     <string name="memory_new">New memory</string>

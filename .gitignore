@@ -12,3 +12,5 @@ __pycache__/
 .DS_Store
 # xiaoman traces pull/show 的默认输出目录
 /traces/
+# 本地验收截图与 uiautomator dump，不进入代码版本
+/.screenshots/

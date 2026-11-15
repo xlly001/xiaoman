@@ -114,8 +114,26 @@ Agent 会按目标检索 `howto` 笔记，把命中结果放进操作提示词�
 | 会话历史 | `app/session/ChatHistoryStore.kt` | `<external files>/chat/history.json`，最近 500 条，原子写入；「清空会话」只删这个文件 |
 | 常用指令 | `app/quick/QuickCommandStore.kt` | `<external files>/chat/quick-commands.json`，最多 8 条，默认三条由多语言资源生成 |
 | 模型自检 | `core-llm/ModelProbe.kt` | 设置页「测试连接」发一条最小请求；操作模型会附带 1×1 PNG，验证图片输入 |
+| 模型目录 | `core-llm/ModelCatalogClient.kt` | 调厂商 OpenAI 兼容的 `GET {baseUrl}/models`；解析 `data[]`/`models[]`，401/404/429 交给 UI 诊断 |
+| 服务商预设 | `app/settings/ModelCatalog.kt` | 火山方舟/OpenAI/DeepSeek/百炼/智谱/Kimi/硅基流动/OpenRouter/自定义；`ModelDefaults` 估算视觉、输出、上下文默认值 |
 | 语音输入 | `app/ui/VoiceInput.kt` | 系统 `SpeechRecognizer`；只接受最终识别结果，权限被拒绝时给出可读提示 |
 | 视觉主题 | `app/ui/Theme.kt` | Open Muse 风格：近白纸面、灰色气泡、蓝色强调、22dp 圆角、系统无衬线字体 |
+
+### 模型目录与设置持久化
+
+- `ModelProfile` 是用户可编辑的模型条目：`id / displayName / maxTokens / temperature /
+  contextWindow / supportsVision / chatCapable`，以 JSON 存在 `SharedPreferences` 的
+  `provider.models`；`provider.id` 记录上次选择的服务商。
+- `chat`、`operator` 仍是运行时真正使用的两个 `ModelSettings`；保存时把 `ModelProfile` 的
+  配置写进对应的 `ModelSettings`，因此 `core-agent` 和 `core-llm` 不需要知道目录的存在。
+- 服务商切换会清空旧模型列表并填入该厂商的 Base URL；Key 只写 `EncryptedSharedPreferences`，
+  切换服务商时同一个 Key 同时用于聊天和操作模型。
+- 旧版本升级时如果没有 `provider.models`，会用现有的 chat/operator 两个模型生成初始目录；
+  如果用户主动把目录保存为空，则保持为空，不自动回填。
+- 拉取失败时：401/403 提示 Key 或开通问题；404 提示该厂商没有 `/models`，引导手动添加模型 ID；
+  429 提示额度；网络错误提示检查网络。手动添加的模型走同一套 `ModelProfile` 和保存逻辑。
+- 设置页的其他项：主题 `appearance.theme`（system/light/dark）、语音识别后自动发送
+  `chat.voiceAutoSend`、请求超时 `model.requestTimeout`（10–300 秒，写进两个 `ModelConfig`）。
 
 新增界面文案全部走 `app/src/main/res/values/strings.xml`，英文翻译在
 `values-en/strings.xml`；新增文案时必须同时补两边，避免中文写死在 Compose 代码里。

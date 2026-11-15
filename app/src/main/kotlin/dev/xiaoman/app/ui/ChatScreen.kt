@@ -103,7 +103,12 @@ fun ChatScreen(
     }
 
     val voice = rememberVoiceInput { recognized ->
-        draft = if (draft.isBlank()) recognized else draft.trimEnd() + " " + recognized
+        val message = if (draft.isBlank()) recognized else draft.trimEnd() + " " + recognized
+        if (settings.voiceAutoSend) {
+            if (session.submit(message) != AgentSession.Submit.Busy) draft = ""
+        } else {
+            draft = message
+        }
     }
     LaunchedEffect(voice.errorRes) {
         voice.errorRes?.let {
@@ -146,8 +151,13 @@ fun ChatScreen(
         LazyColumn(
             state = listState,
             modifier = Modifier.weight(1f).fillMaxWidth(),
-            contentPadding = PaddingValues(horizontal = 18.dp, vertical = 14.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp),
+            contentPadding = PaddingValues(horizontal = 14.dp, vertical = 4.dp),
+            verticalArrangement = if (items.isEmpty()) {
+                Arrangement.spacedBy(8.dp)
+            } else {
+                // Keep the newest message close to the composer instead of leaving a blank strip below it.
+                Arrangement.spacedBy(8.dp, Alignment.Bottom)
+            },
         ) {
             if (items.isEmpty()) {
                 item {
@@ -287,7 +297,7 @@ private fun ChatInput(
     }
     Surface(color = MaterialTheme.colorScheme.background) {
         Row(
-            Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 10.dp),
+            Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 4.dp),
             verticalAlignment = Alignment.Bottom,
         ) {
             Surface(
@@ -347,7 +357,7 @@ private fun ChatInput(
             FilledIconButton(
                 onClick = { if (busy && !answering) session.stop() else send() },
                 enabled = (busy && !answering) || canSend,
-                modifier = Modifier.padding(bottom = 6.dp).size(48.dp),
+                modifier = Modifier.padding(bottom = 2.dp).size(44.dp),
             ) {
                 Icon(
                     if (busy && !answering) Icons.Filled.Stop else Icons.Filled.ArrowUpward,

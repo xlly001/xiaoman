@@ -115,7 +115,7 @@ private val MuseTypography = Typography(
 )
 
 @Composable
-fun XiaomanTheme(content: @Composable () -> Unit) {
-    val scheme = if (isSystemInDarkTheme()) DarkScheme else LightScheme
+fun XiaomanTheme(darkTheme: Boolean = isSystemInDarkTheme(), content: @Composable () -> Unit) {
+    val scheme = if (darkTheme) DarkScheme else LightScheme
     MaterialTheme(colorScheme = scheme, typography = MuseTypography, shapes = MuseShapes, content = content)
 }

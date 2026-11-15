@@ -8,6 +8,7 @@ import dev.xiaoman.api.ModelRole
 import dev.xiaoman.app.quick.QuickCommand
 import dev.xiaoman.app.quick.QuickCommandStore
 import dev.xiaoman.app.session.AgentSession
+import dev.xiaoman.app.session.AndroidStepText
 import dev.xiaoman.app.session.ChatHistoryStore
 import dev.xiaoman.app.session.SessionTexts
 import dev.xiaoman.app.settings.AppSettings
@@ -20,8 +21,10 @@ import dev.xiaoman.hands.MutableStopSignal
 import dev.xiaoman.hands.XiaomanAccessibilityService
 import dev.xiaoman.llm.LlmClientFactory
 import dev.xiaoman.llm.LlmClients
+import dev.xiaoman.llm.ModelCatalogClient
 import dev.xiaoman.llm.ModelProbe
 import dev.xiaoman.llm.ProbeResult
+import dev.xiaoman.llm.RemoteModel
 import dev.xiaoman.app.settings.McpSettingsStore
 import dev.xiaoman.mcp.McpCatalog
 import dev.xiaoman.mcp.McpConfig
@@ -156,12 +159,17 @@ class AppGraph(context: Context, private val llm: LlmClientFactory = LlmClients.
             ),
             ready = { startup.await() },
             history = chatHistory,
+            stepText = AndroidStepText(app),
         )
     }
 
     /** Runs a one-shot probe against the values currently typed in Settings, without saving them. */
     suspend fun probeModel(settings: ModelSettings, role: ModelRole): ProbeResult =
         ModelProbe.probe(llm.create(settings.toModelConfig(role).copy(timeoutSeconds = 30)), role)
+
+    /** Fetches the provider's OpenAI-compatible model list for the Settings picker. */
+    suspend fun listModels(baseUrl: String, apiKey: String): List<RemoteModel> =
+        ModelCatalogClient().list(baseUrl, apiKey)
 
     private fun defaultQuickCommands(): List<QuickCommand> = listOf(
         QuickCommand(
