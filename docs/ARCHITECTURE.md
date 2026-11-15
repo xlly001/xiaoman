@@ -114,9 +114,11 @@ Agent 会按目标检索 `howto` 笔记，把命中结果放进操作提示词�
 | 会话历史 | `app/session/ChatHistoryStore.kt` | `<external files>/chat/history.json`，默认 500 条，可在设置中调为 50–2000；原子写入；「清空会话」只删这个文件 |
 | 任务子对话 | `app/session/TaskThreadStore.kt` | `<external files>/chat/tasks.json`；每个手机任务一个线程，最多 100 个任务、每任务 200 条记录；主对话只保留 `ChatItem.TaskEntry` 卡片 |
 | 小满日记 | `app/diary/DiaryStore.kt` | `<external files>/diary/diary.json`；任务完成/失败与记忆更新写入，最多 500 条，按天分页 |
-| 全局 Dock | `app/ui/ChatDock.kt` | 输入框 + 导航合并为一张悬浮卡片；所有页签共用草稿；附件、语音、发送/停止都在这张卡里 |
+| 全局 Dock | `app/ui/ChatDock.kt` | 输入框 + 导航合并为一张近不透明卡片，外圈透明；所有页签共用草稿；附件、语音、发送/停止都在这张卡里 |
+| 能力页 | `app/ui/CapabilitiesScreen.kt` | 「技能 / 服务」分段切换；复用 `SkillsScreen` 与 `McpScreen`，隐藏重复标题 |
+| 任务历史 | `app/ui/TaskHistoryScreen.kt` | 全部历史任务按时间倒序；全部/进行中/已完成/未完成筛选；点击进入任务详情 |
 | 搜索 | `app/ui/SearchScreen.kt` | 右上菜单进入；搜索主对话与任务线程，任务命中可直接打开详情 |
-| 任务详情 | `app/ui/TaskDetailScreen.kt` | 目标、状态、步数与处理过程（默认展开）；返回主对话 |
+| 任务详情 | `app/ui/TaskDetailScreen.kt` | 目标、状态、步数与处理过程（默认展开）；返回来源页（主对话或任务列表） |
 | 常用指令 | `app/quick/QuickCommandStore.kt` | `<external files>/chat/quick-commands.json`，最多 8 条，默认六条由多语言资源生成 |
 | 模型自检 | `core-llm/ModelProbe.kt` | 设置页「测试连接」发一条最小请求；操作模型会附带 1×1 PNG，验证图片输入 |
 | 模型目录 | `core-llm/ModelCatalogClient.kt` | 调厂商 OpenAI 兼容的 `GET {baseUrl}/models`；解析 `data[]`/`models[]` 与上下文/最大输出/图片模态元数据，401/404/429 交给 UI 诊断 |
@@ -159,7 +161,7 @@ Agent 会按目标检索 `howto` 笔记，把命中结果放进操作提示词�
 
 新增界面文案全部走 `app/src/main/res/values/strings.xml`，英文翻译在
 `values-en/strings.xml`；新增文案时必须同时补两边，避免中文写死在 Compose 代码里。
-当前两边各 342 个 key。
+当前两边各 350 个 key。
 
 真机验收：在聊天页输入一句话 → 杀进程重开，历史仍在；新建一条常用指令 → 重开仍在；
 点麦克风授权后说一句话 → 文字进入输入框；设置页分别测试聊天/操作模型 → 成功显示延迟，失败显示

@@ -77,6 +77,8 @@ wash, white rounded cards and one-piece bottom dock of the reference app:
 - **Model self-check**: Settings can probe the chat and operator models separately. The operator probe
   includes a 1×1 PNG so a text-only model cannot pass; 401, 404, 429 and network failures get specific
   guidance.
+- **Capabilities page**: Skills and Services now share one page with a segmented switch. Skills keeps search, create, edit and delete; Services keeps MCP selection, keys, testing and custom servers.
+- **Task history**: the Tasks tab lists every past task newest first, with All/Running/Done/Failed filters; tapping a card opens its detail.
 - **Settings entry**: the gear at the top-left of the chat opens Settings. It covers theme (system/light/
   dark), language (system/Simplified Chinese/English), automatic voice send, notification toggle,
   request timeout, conversation cap, accessibility, clear conversation/traces and version information.
@@ -85,7 +87,7 @@ wash, white rounded cards and one-piece bottom dock of the reference app:
   The Memory screen can create, edit and delete notes.
 - **Internationalization**: every new UI string lives in resources, with Chinese in
   `app/src/main/res/values/strings.xml` and English in `values-en/strings.xml`; both files currently
-  hold 342 matching keys, and the app language can be switched in Settings.
+  hold 350 matching keys, and the app language can be switched in Settings.
 
 The roadmap toward a SuperAgent (task queue, checkpoints, layered memory, skill ecosystem and
 multi-agent execution) is in [docs/superagent-plan.md](docs/superagent-plan.md) (Chinese).

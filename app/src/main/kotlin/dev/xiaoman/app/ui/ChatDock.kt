@@ -17,7 +17,9 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -72,7 +74,7 @@ import dev.xiaoman.app.session.AgentSession
 import java.io.ByteArrayOutputStream
 
 /** Height the merged composer + navigation dock occupies, including margins. */
-internal val DockSpace = 116.dp
+internal val DockSpace = 128.dp
 
 private data class Attachment(val name: String, val bytes: ByteArray?)
 
@@ -164,11 +166,11 @@ fun ChatDock(
     val canSend = (draft.isNotBlank() || attachments.isNotEmpty()) && (!busy || question != null)
 
     Surface(
-        modifier = modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 6.dp),
+        modifier = modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 6.dp),
         shape = RoundedCornerShape(28.dp),
-        color = MaterialTheme.colorScheme.surface,
+        color = MaterialTheme.colorScheme.surface.copy(alpha = 0.96f),
         border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
-        shadowElevation = 10.dp,
+        shadowElevation = 6.dp,
     ) {
         Column(Modifier.fillMaxWidth()) {
             if (attachments.isNotEmpty()) {
@@ -200,6 +202,7 @@ fun ChatDock(
                     }
                 }
             }
+            // The composer and navigation share one card; only the outside stays transparent.
             Row(
                 Modifier.fillMaxWidth().padding(start = 4.dp, end = 4.dp, top = 2.dp, bottom = 2.dp),
                 verticalAlignment = Alignment.CenterVertically,

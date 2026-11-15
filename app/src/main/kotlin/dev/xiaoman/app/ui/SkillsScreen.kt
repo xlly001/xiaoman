@@ -4,6 +4,7 @@ import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
@@ -92,7 +93,7 @@ class SkillsViewModel(
 }
 
 @Composable
-fun SkillsScreen(graph: AppGraph, onAuthorSkill: (String) -> Unit) {
+fun SkillsScreen(graph: AppGraph, onAuthorSkill: (String) -> Unit, showTitle: Boolean = true) {
     val vm = viewModel { SkillsViewModel(graph.skills, { graph.startup.await() }, graph::logSkillProblems) }
     val state by vm.state.collectAsStateWithLifecycle()
     var query by remember { mutableStateOf("") }
@@ -125,7 +126,11 @@ fun SkillsScreen(graph: AppGraph, onAuthorSkill: (String) -> Unit) {
             Modifier.fillMaxWidth().padding(start = 18.dp, end = 8.dp, top = 12.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Text(stringResource(R.string.skills_title), style = MaterialTheme.typography.headlineMedium, modifier = Modifier.weight(1f))
+            if (showTitle) {
+                Text(stringResource(R.string.skills_title), style = MaterialTheme.typography.headlineMedium, modifier = Modifier.weight(1f))
+            } else {
+                Spacer(Modifier.weight(1f))
+            }
             TextButton(onClick = { onAuthorSkill(newSkillPrompt) }) {
                 Icon(Icons.Filled.Add, contentDescription = null, modifier = Modifier.size(18.dp))
                 Text(stringResource(R.string.skills_new), modifier = Modifier.padding(start = 4.dp))

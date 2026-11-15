@@ -12,8 +12,8 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Chat
 import androidx.compose.material.icons.filled.AutoAwesome
+import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Extension
-import androidx.compose.material.icons.filled.Hub
 import androidx.compose.material.icons.filled.Psychology
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.MaterialTheme
@@ -34,8 +34,8 @@ import dev.xiaoman.app.R
 
 enum class Tab(@StringRes val label: Int, val icon: ImageVector) {
     CHAT(R.string.nav_chat, Icons.AutoMirrored.Filled.Chat),
-    SKILLS(R.string.nav_skills, Icons.Filled.Extension),
-    SERVICES(R.string.nav_services, Icons.Filled.Hub),
+    CAPABILITIES(R.string.nav_capabilities, Icons.Filled.Extension),
+    TASKS(R.string.nav_tasks, Icons.Filled.CheckCircle),
     MEMORY(R.string.nav_memory, Icons.Filled.Psychology),
     XIAOMAN(R.string.nav_xiaoman, Icons.Filled.AutoAwesome),
 
@@ -75,29 +75,27 @@ fun XiaomanRoot(graph: AppGraph) {
                 .consumeWindowInsets(padding)
                 .imePadding(),
         ) {
-            when (tab) {
-                Tab.CHAT -> {
-                    val taskId = openTaskId
-                    if (taskId != null) {
-                        TaskDetailScreen(graph, taskId, onBack = { openTaskId = null })
-                    } else {
-                        ChatScreen(
-                            graph,
-                            onOpenSettings = { tab = Tab.SETTINGS },
-                            onFillDraft = { draft = it },
-                            onOpenTask = { openTaskId = it },
-                            onSearch = { searchOpen = true },
-                        )
+            val taskId = openTaskId
+            if (taskId != null) {
+                TaskDetailScreen(graph, taskId, onBack = { openTaskId = null })
+            } else {
+                when (tab) {
+                    Tab.CHAT -> ChatScreen(
+                        graph,
+                        onOpenSettings = { tab = Tab.SETTINGS },
+                        onFillDraft = { draft = it },
+                        onOpenTask = { openTaskId = it },
+                        onSearch = { searchOpen = true },
+                    )
+                    Tab.CAPABILITIES -> CapabilitiesScreen(graph) { pending ->
+                        pendingChatDraft = pending
+                        tab = Tab.CHAT
                     }
+                    Tab.TASKS -> TaskHistoryScreen(graph) { openTaskId = it }
+                    Tab.MEMORY -> MemoryScreen(graph)
+                    Tab.XIAOMAN -> DiaryScreen(graph)
+                    Tab.SETTINGS -> SettingsScreen(graph)
                 }
-                Tab.SKILLS -> SkillsScreen(graph) { pending ->
-                    pendingChatDraft = pending
-                    tab = Tab.CHAT
-                }
-                Tab.SERVICES -> McpScreen(graph)
-                Tab.MEMORY -> MemoryScreen(graph)
-                Tab.XIAOMAN -> DiaryScreen(graph)
-                Tab.SETTINGS -> SettingsScreen(graph)
             }
             if (searchOpen) {
                 SearchScreen(
@@ -106,12 +104,12 @@ fun XiaomanRoot(graph: AppGraph) {
                     onOpenTask = {
                         searchOpen = false
                         openTaskId = it
-                        tab = Tab.CHAT
+                        tab = Tab.TASKS
                     },
                 )
             } else {
-                // One floating card contains both the composer and the navigation row; the margins
-                // around it are transparent, so the page stays visible behind and around it.
+                // The composer and navigation are separate opaque pills on a transparent layer,
+                // so the page stays visible in the gaps and margins around them.
                 ChatDock(
                     graph = graph,
                     selected = tab,

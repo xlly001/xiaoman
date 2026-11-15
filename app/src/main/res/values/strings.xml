@@ -4,10 +4,10 @@
 
     <!-- Navigation -->
     <string name="nav_chat">聊天</string>
-    <string name="nav_skills">技能</string>
     <string name="nav_memory">记忆</string>
     <string name="nav_settings">设置</string>
-    <string name="nav_services">服务</string>
+    <string name="nav_capabilities">能力</string>
+    <string name="nav_tasks">任务</string>
     <string name="nav_xiaoman">小满</string>
     <string name="back">返回</string>
 
@@ -184,6 +184,17 @@
     <string name="task_detail_title">任务详情</string>
     <string name="task_detail_steps">%1$d 步</string>
     <string name="task_detail_empty">这个任务还没有记录。</string>
+
+    <!-- Capabilities and task history -->
+    <string name="capabilities_skills">技能</string>
+    <string name="capabilities_services">服务</string>
+    <string name="tasks_count">%1$d 个任务</string>
+    <string name="tasks_empty_title">还没有任务</string>
+    <string name="tasks_empty_body">让小满替你操作手机后，历史任务会出现在这里。</string>
+    <string name="tasks_filter_all">全部</string>
+    <string name="tasks_filter_running">进行中</string>
+    <string name="tasks_filter_done">已完成</string>
+    <string name="tasks_filter_failed">未完成</string>
     <string name="quick_title">常用指令</string>
     <string name="quick_add">新建指令</string>
     <string name="quick_dialog_add_title">新建常用指令</string>

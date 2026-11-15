@@ -53,7 +53,7 @@ private val RECOMMENDED = setOf("amap", "aihot")
 
 /** One-tap MCP services: tick a service, paste its key, save. Changes apply from the next chat message. */
 @Composable
-fun McpScreen(graph: AppGraph) {
+fun McpScreen(graph: AppGraph, showTitle: Boolean = true) {
     val store = graph.mcpSettings
     var selection by remember { mutableStateOf(store.current) }
     var saved by remember { mutableStateOf(false) }
@@ -71,7 +71,9 @@ fun McpScreen(graph: AppGraph) {
             .padding(start = 16.dp, end = 16.dp, top = 16.dp, bottom = DockSpace + 16.dp),
         verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
-        Text(stringResource(R.string.mcp_title), style = MaterialTheme.typography.titleLarge)
+        if (showTitle) {
+            Text(stringResource(R.string.mcp_title), style = MaterialTheme.typography.titleLarge)
+        }
         Text(stringResource(R.string.mcp_intro), style = MaterialTheme.typography.bodyMedium)
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             Text(stringResource(R.string.mcp_enabled_count, selection.enabled.size + selection.custom.size), modifier = Modifier.weight(1f))

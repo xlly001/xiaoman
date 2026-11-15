@@ -113,8 +113,8 @@ fun ChatScreen(
         }
     }
 
-    // Room reserved under the last row so it can scroll above the floating dock.
-    val bottomSpace = if (keyboardOpen) 64.dp else DockSpace + 8.dp
+    // Keep the last message above the two opaque pills; the space around them stays transparent.
+    val bottomSpace = if (keyboardOpen) 64.dp else DockSpace - 4.dp
 
     Box(Modifier.fillMaxSize()) {
         Column(Modifier.fillMaxSize()) {
