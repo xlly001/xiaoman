@@ -31,10 +31,12 @@ cd f:\gowork\xllyxx\xiaoman
 .\gradlew.bat :core-llm:test :core-agent:test :core-skills:test :app:testDebugUnitTest :eval:test
 .\gradlew.bat :eval:run   # 15 个评测场景，报告在 eval/build/reports/eval/
 .\gradlew.bat :app:assembleDebug :app:lintDebug --offline
+.\gradlew.bat :app:assembleRelease   # 发行包，需要根目录 keystore.properties
 ```
 
 - **JDK 必须是 17**（`D:\Android\jdk17`）：Java 21+（实测 25.0.1）会让 Kotlin 2.1 的 `JavaVersion.parse` 抛 `IllegalArgumentException: 25.0.1`，Gradle 在编译前就失败。
 - APK：`app/build/outputs/apk/debug/app-debug.apk`
+- 发行 APK：`app/build/outputs/apk/release/app-release.apk`，交付副本 `dist/xiaoman-muse-0.1.0-release.apk`
 - 交付副本：`dist/xiaoman-muse-latest-debug.apk`（`dist/` 未纳入 git，避免把 65 MB 的包提交进去）
 - 模拟器（已装好 App）：AVD `xiaoman35`，Android 15 / API 35 / x86_64，1080×2400，WHPX 加速。
 - adb：`D:\Android\Sdk\platform-tools\adb.exe`
@@ -42,6 +44,23 @@ cd f:\gowork\xllyxx\xiaoman
 - 启动：`adb shell monkey -p dev.xiaoman.app -c android.intent.category.LAUNCHER 1`
 
 首次使用需要在小满「设置」里填聊天模型与操作模型（任意 OpenAI 兼容服务）。**仓库里没有任何 Key**，也不要提交 Key。
+
+### 1.1 发行签名
+
+release 变体从仓库根目录的 `keystore.properties` 读签名材料，该文件与 `/keystore/` 都在 `.gitignore` 里：
+
+```properties
+storeFile=keystore/xiaoman-release.jks
+storePassword=***
+keyAlias=xiaoman
+keyPassword=***
+```
+
+- 本机密钥库：`keystore/xiaoman-release.jks`，RSA 4096，有效期 30 年，签名方案 v2 + v3（v1 关闭，`minSdk 30` 用不上 JAR 签名，v3 保留密钥轮换能力）。
+- 证书 SHA-256：`5c0ddd47e86fa776dcd4f3309045d80d4793fe096bfbdb88b328dd884a6edb90`（2026-11-15 生成，v0.1.0 起使用）。
+- `keystore.properties` 不存在时 Gradle 不挂签名配置，`assembleRelease` 产出的包未签名、装不上。
+- **密钥库丢失后无法再覆盖升级 `dev.xiaoman.app`**，换包名等于用户数据清零；jks 与口令必须单独备份。
+- release 包与 debug 包签名不同，直接覆盖安装会报 `INSTALL_FAILED_UPDATE_INCOMPATIBLE`，先 `adb uninstall dev.xiaoman.app` 再装。
 
 ---
 

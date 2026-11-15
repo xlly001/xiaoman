@@ -7,6 +7,10 @@ local.properties
 captures/
 *.apk
 *.keystore
+*.jks
+# 发行签名材料（密钥库 + 口令）只留在本机，绝不入库
+/keystore/
+keystore.properties
 .env
 __pycache__/
 .DS_Store

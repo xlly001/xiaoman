@@ -36,6 +36,33 @@ scripts/gradle.sh test :app:assembleDebug            # later runs work offline
 `scripts/gradle.sh` wraps `./gradlew` and keeps build output outside the checkout; see the script
 header for its environment variables.
 
+### Release build
+
+```bash
+./gradlew :app:assembleRelease
+```
+
+The APK lands in `app/build/outputs/apk/release/app-release.apk` and is also copied to
+`dist/xiaoman-muse-<versionName>-release.apk` for distribution. The release variant keeps code
+unobfuscated (full stack traces for field issues) and only strips unused resources; the debug-only
+command receiver is not packaged.
+
+Signing material never enters the repository. Put a `keystore.properties` at the repo root
+(both it and `/keystore/` are git-ignored):
+
+```properties
+storeFile=keystore/xiaoman-release.jks
+storePassword=********
+keyAlias=xiaoman
+keyPassword=********
+```
+
+Without that file the release variant has no signing config and produces an unsigned, uninstallable
+APK. Signing is v2 + v3 with v1 disabled (`minSdk 30`, so JAR signing buys nothing and v3 keeps key
+rotation possible). **Losing the keystore means no future update can reuse this package name** — back
+up `keystore/xiaoman-release.jks` and its passwords separately. Uninstall the old app before
+installing a build signed with a different key, otherwise the install fails with a signature conflict.
+
 ## Use
 
 1. Install the debug APK and open Xiaoman.

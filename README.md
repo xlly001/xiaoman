@@ -48,6 +48,26 @@ scripts/gradle.sh test :app:assembleDebug            # 之后可以离线构建
 
 `scripts/gradle.sh` 封装了 `./gradlew`，构建产物放在仓库目录之外，保持工作区干净。可用的环境变量见脚本开头的注释。
 
+### 发行版打包
+
+```bash
+./gradlew :app:assembleRelease
+```
+
+产物是 `app/build/outputs/apk/release/app-release.apk`，同时输出到 `dist/xiaoman-muse-<versionName>-release.apk` 供分发。
+release 变体关闭了代码混淆（保留完整堆栈便于线上排查），仅过滤无用资源；debug 专用的调试广播接收器不会打进发行包。
+
+签名材料不入库，需要在仓库根目录放一个 `keystore.properties`（`.gitignore` 已忽略它和 `/keystore/`）：
+
+```properties
+storeFile=keystore/xiaoman-release.jks
+storePassword=********
+keyAlias=xiaoman
+keyPassword=********
+```
+
+文件缺失时 release 变体不挂签名配置，产出的是未签名包（无法安装）。签名方案为 v2 + v3、关闭 v1（`minSdk 30`，JAR 签名没有意义，v3 保留密钥轮换能力）。**密钥库丢失后无法再覆盖升级同一个包名**，务必单独备份 `keystore/xiaoman-release.jks` 与口令。换签名重装前要先卸载旧包，否则会报签名冲突。
+
 ## 使用
 
 1. 安装 debug APK，打开小满。
