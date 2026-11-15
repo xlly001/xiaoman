@@ -20,7 +20,7 @@
 
 **开发方式：** 基于 TRAE 训练营课程开源项目 [aduoge/xiaoman](https://github.com/aduoge/xiaoman)（MIT 协议）做二次开发。原项目提供 Agent 骨架、无障碍操作循环、Sentinel 安全层、记忆与技能基础；本次在此基础上做界面、任务系统、流式回复、语音/识别、评测等改造。
 
-**当前发行版：** Android `v0.1.2`（release APK）。
+**当前发行版：** Android `v0.1.3`（release APK）。
 
 **和课程原版比，改了什么：**
 
