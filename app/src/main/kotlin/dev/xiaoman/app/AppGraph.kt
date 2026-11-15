@@ -6,7 +6,9 @@ import dev.xiaoman.agent.XiaomanAgent
 import dev.xiaoman.api.Agent
 import dev.xiaoman.api.AgentEvent
 import dev.xiaoman.api.ModelRole
+import dev.xiaoman.app.diary.DiaryEntry
 import dev.xiaoman.app.diary.DiaryStore
+import dev.xiaoman.app.diary.DiarySummarizer
 import dev.xiaoman.app.media.MediaEngineRouter
 import dev.xiaoman.app.quick.QuickCommand
 import dev.xiaoman.app.quick.QuickCommandStore
@@ -148,6 +150,22 @@ class AppGraph(context: Context, private val llm: LlmClientFactory = LlmClients.
 
     /** Xiaoman's daily activity diary, shown in the "小满" tab. */
     val diary by lazy { DiaryStore(File(externalRoot, "diary/diary.json")) }
+
+    /** Recaps a diary day with the configured chat model API; no operator model needed. */
+    private val diarySummarizer by lazy {
+        DiarySummarizer(llm, chatConfig = {
+            settings.current.chat.takeIf { it.configured }?.toModelConfig(ModelRole.CHAT)
+        })
+    }
+
+    /**
+     * Calls the model API, then writes the returned summary into the diary file so it
+     * survives restarts. Failure is returned to the UI instead of being swallowed.
+     */
+    suspend fun generateDiarySummary(date: String, entries: List<DiaryEntry>): Result<String> =
+        diarySummarizer.summarize(date, entries).onSuccess { text ->
+            diary.putSummary(date, text, entries.size)
+        }
 
     /** Phone tasks as their own conversations, linked from the main chat. */
     val taskThreads by lazy { TaskThreadStore(File(chatDir, "tasks.json")) }

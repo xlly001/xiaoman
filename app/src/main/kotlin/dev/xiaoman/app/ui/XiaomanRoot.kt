@@ -1,6 +1,17 @@
 package dev.xiaoman.app.ui
 
 import androidx.annotation.StringRes
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutHorizontally
+import androidx.compose.animation.slideOutVertically
+import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Box
@@ -17,7 +28,6 @@ import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Extension
 import androidx.compose.material.icons.filled.Psychology
 import androidx.compose.material.icons.filled.Settings
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -31,6 +41,7 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalDensity
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dev.xiaoman.app.AppGraph
 import dev.xiaoman.app.R
 
@@ -59,6 +70,17 @@ enum class Tab(@StringRes val label: Int, val icon: ImageVector) {
     SETTINGS(R.string.nav_settings, Icons.Filled.Settings),
 }
 
+/**
+ * Pages mounted in the background right after launch, in the order they are most likely to be
+ * opened. Their contents are built off screen so the first tap on each tab only has to fade it in.
+ */
+private val WarmUpTabs = listOf(Tab.TASKS, Tab.MEMORY, Tab.CAPABILITIES, Tab.XIAOMAN, Tab.SETTINGS)
+
+private const val OverlayInMillis = 280
+private const val OverlayOutMillis = 240
+private const val DockInMillis = 260
+private const val DockOutMillis = 200
+
 @Composable
 fun XiaomanRoot(graph: AppGraph, darkTheme: Boolean = isSystemInDarkTheme()) {
     var tab by rememberSaveable { mutableStateOf(Tab.CHAT) }
@@ -75,6 +97,9 @@ fun XiaomanRoot(graph: AppGraph, darkTheme: Boolean = isSystemInDarkTheme()) {
         }
     }
     val keyboardOpen = WindowInsets.ime.getBottom(LocalDensity.current) > 0
+    // Never build the other pages while a reply is streaming: that is the one moment the main
+    // thread is already busy and an extra composition would show up as a stutter.
+    val busy by graph.session.busy.collectAsStateWithLifecycle()
     // Follow the app's own theme, not the system one: picking "深色" in Settings must
     // switch the full-screen wash too, otherwise dark cards sit on a light blue background.
     val wash = if (darkTheme) MuseDarkWash else MuseLightWash
@@ -96,13 +121,17 @@ fun XiaomanRoot(graph: AppGraph, darkTheme: Boolean = isSystemInDarkTheme()) {
                 .imePadding(),
         ) {
             val taskId = openTaskId
-            if (taskId != null) {
-                TaskDetailScreen(graph, taskId, onBack = { openTaskId = null })
-            } else {
-                when (tab) {
+            // Pages stay composed; only the layer that is on top is drawn and reachable.
+            TabPager(
+                selected = tab,
+                active = taskId == null && !searchOpen,
+                warmUp = if (busy) emptyList() else WarmUpTabs,
+            ) { target ->
+                when (target) {
                     Tab.CHAT -> ChatScreen(
                         graph,
                         onOpenSettings = { tab = Tab.SETTINGS },
+                        onOpenDiary = { tab = Tab.XIAOMAN },
                         onFillDraft = { draft = it },
                         onOpenTask = { openTaskId = it },
                         onSearch = { searchOpen = true },
@@ -117,17 +146,64 @@ fun XiaomanRoot(graph: AppGraph, darkTheme: Boolean = isSystemInDarkTheme()) {
                     Tab.SETTINGS -> SettingsScreen(graph)
                 }
             }
-            if (searchOpen) {
-                SearchScreen(
-                    graph,
-                    onClose = { searchOpen = false },
-                    onOpenTask = {
-                        searchOpen = false
-                        openTaskId = it
-                        tab = Tab.TASKS
-                    },
-                )
-            } else {
+            // A task thread slides over the tabs instead of replacing them, so closing it returns
+            // to a page that was never torn down. AnimatedContent keeps the outgoing thread around
+            // while it leaves, which also makes an early "back" a reverse, not a jump cut.
+            AnimatedContent(
+                targetState = taskId,
+                transitionSpec = {
+                    if (targetState != null) {
+                        (
+                            slideInHorizontally(tween(OverlayInMillis, easing = FastOutSlowInEasing)) { it / 5 } +
+                                fadeIn(tween(OverlayInMillis - 60))
+                            ) togetherWith fadeOut(tween(140))
+                    } else {
+                        fadeIn(tween(120)) togetherWith
+                            (
+                                slideOutHorizontally(tween(OverlayOutMillis, easing = FastOutSlowInEasing)) { it / 5 } +
+                                    fadeOut(tween(OverlayOutMillis - 40))
+                                )
+                    }
+                },
+                label = "task-thread",
+            ) { id ->
+                if (id == null) {
+                    Box(Modifier.fillMaxSize())
+                } else {
+                    Box(Modifier.fillMaxSize().blockPointerInput()) {
+                        TaskDetailScreen(graph, id, onBack = { openTaskId = null })
+                    }
+                }
+            }
+            // Search is a sheet over the current page: it rises from the bottom while the dock
+            // ducks away, so the two motions read as one gesture.
+            AnimatedVisibility(
+                visible = searchOpen,
+                enter = slideInVertically(tween(OverlayInMillis, easing = FastOutSlowInEasing)) { it } +
+                    fadeIn(tween(140)),
+                exit = slideOutVertically(tween(OverlayOutMillis, easing = FastOutSlowInEasing)) { it } +
+                    fadeOut(tween(DockOutMillis)),
+            ) {
+                Box(Modifier.fillMaxSize().blockPointerInput()) {
+                    SearchScreen(
+                        graph,
+                        onClose = { searchOpen = false },
+                        onOpenTask = {
+                            searchOpen = false
+                            openTaskId = it
+                            tab = Tab.TASKS
+                        },
+                    )
+                }
+            }
+            AnimatedVisibility(
+                visible = !searchOpen,
+                modifier = Modifier.align(Alignment.BottomCenter),
+                enter = slideInVertically(tween(DockInMillis, easing = FastOutSlowInEasing)) { it } +
+                    fadeIn(tween(DockInMillis)),
+                exit = slideOutVertically(tween(DockOutMillis, easing = FastOutSlowInEasing)) { it } +
+                    fadeOut(tween(DockOutMillis)),
+            ) {
                 // The composer and navigation are separate opaque pills on a transparent layer,
                 // so the page stays visible in the gaps and margins around them.
                 ChatDock(
@@ -146,7 +222,6 @@ fun XiaomanRoot(graph: AppGraph, darkTheme: Boolean = isSystemInDarkTheme()) {
                     },
                     keyboardOpen = keyboardOpen,
                     activeTaskId = openTaskId,
-                    modifier = Modifier.align(Alignment.BottomCenter),
                 )
             }
         }

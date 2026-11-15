@@ -162,6 +162,7 @@
 
     <!-- Xiaoman diary -->
     <string name="diary_title">小满日记</string>
+    <string name="diary_open">打开小满日记</string>
     <string name="diary_subtitle">小满做过的事，按天收进卡片，左右滑动查看。</string>
     <string name="diary_empty_title">还没有日记</string>
     <string name="diary_empty_body">让小满完成一次任务或记住一条偏好，这里就会留下记录。</string>
@@ -172,6 +173,17 @@
     <string name="diary_kind_task_failed">任务未完成</string>
     <string name="diary_kind_memory">记忆</string>
     <string name="diary_kind_note">记录</string>
+    <string name="diary_summary_title">今日摘要</string>
+    <string name="diary_summary_generated">模型生成 · %1$s</string>
+    <string name="diary_summary_generate">生成摘要</string>
+    <string name="diary_summary_refresh">重新生成</string>
+    <string name="diary_summary_loading">正在调用模型生成摘要…</string>
+    <string name="diary_summary_empty">还没有摘要，点「生成摘要」让小满总结这一天。</string>
+    <string name="diary_summary_unconfigured">请先在设置里配置对话模型，才能生成摘要。</string>
+    <string name="diary_summary_error">摘要生成失败：%1$s</string>
+    <string name="diary_summary_retry">重试</string>
+    <string name="diary_open_detail">查看当天日记详情</string>
+    <string name="diary_detail_entries">当天记录</string>
 
     <!-- Search and task threads -->
     <string name="search">搜索</string>

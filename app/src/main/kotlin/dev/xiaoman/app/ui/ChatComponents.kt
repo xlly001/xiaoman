@@ -53,6 +53,7 @@ import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
@@ -71,10 +72,12 @@ internal fun ChatHeader(
     busy: Boolean,
     attention: Boolean,
     onOpenSettings: () -> Unit,
+    onOpenDiary: () -> Unit,
     onClearHistory: () -> Unit,
     onSearch: () -> Unit,
 ) {
     var menu by rememberSaveable { mutableStateOf(false) }
+    val openDiaryLabel = stringResource(R.string.diary_open)
     Box(Modifier.fillMaxWidth().padding(top = 6.dp, bottom = 2.dp)) {
         Row(
             Modifier.fillMaxWidth().padding(horizontal = 16.dp),
@@ -114,14 +117,17 @@ internal fun ChatHeader(
             // Round mascot avatar above the name pill, matching the Open Muse header.
             Image(
                 painter = painterResource(R.drawable.avatar_xiaoman),
-                contentDescription = null,
+                contentDescription = openDiaryLabel,
                 modifier = Modifier
                     .size(82.dp)
                     .clip(CircleShape)
-                    .border(3.dp, MaterialTheme.colorScheme.surface, CircleShape),
+                    .border(3.dp, MaterialTheme.colorScheme.surface, CircleShape)
+                    .clickable(onClickLabel = openDiaryLabel, role = Role.Button, onClick = onOpenDiary),
             )
             Surface(
-                modifier = Modifier.offset(y = (-9).dp),
+                modifier = Modifier
+                    .offset(y = (-9).dp)
+                    .clickable(onClickLabel = openDiaryLabel, role = Role.Button, onClick = onOpenDiary),
                 shape = CircleShape,
                 color = MaterialTheme.colorScheme.surface.copy(alpha = 0.86f),
                 border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),

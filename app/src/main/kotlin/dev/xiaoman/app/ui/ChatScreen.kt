@@ -85,6 +85,7 @@ private val HeaderOverlayHeight = 160.dp
 fun ChatScreen(
     graph: AppGraph,
     onOpenSettings: () -> Unit,
+    onOpenDiary: () -> Unit,
     onFillDraft: (String) -> Unit,
     onOpenTask: (String) -> Unit,
     onSearch: () -> Unit,
@@ -219,6 +220,7 @@ fun ChatScreen(
                 busy = busy,
                 attention = approval != null || question != null,
                 onOpenSettings = onOpenSettings,
+                onOpenDiary = onOpenDiary,
                 onClearHistory = { clearHistory = true },
                 onSearch = onSearch,
             )

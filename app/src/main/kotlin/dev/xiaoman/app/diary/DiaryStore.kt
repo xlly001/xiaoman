@@ -22,12 +22,27 @@ data class DiaryEntry(
     val detail: String = "",
 )
 
+/** A model-generated recap of one day; [entryCount] tells the UI when a refresh is due. */
 @Serializable
-private data class DiaryFile(val version: Int = 1, val entries: List<DiaryEntry> = emptyList())
+data class DiarySummary(
+    /** yyyy-MM-dd in the device's local zone. */
+    val date: String,
+    val text: String,
+    val updatedAt: Long = 0L,
+    val entryCount: Int = 0,
+)
+
+@Serializable
+private data class DiaryFile(
+    val version: Int = 1,
+    val entries: List<DiaryEntry> = emptyList(),
+    /** Added in v2; old files simply decode to an empty list. */
+    val summaries: List<DiarySummary> = emptyList(),
+)
 
 /**
  * Persists Xiaoman's diary under [file]; plain JSON so users can inspect or back it up.
- * Writes are atomic and the list is capped so the file never grows without bound.
+ * Writes are atomic and both lists are capped so the file never grows without bound.
  */
 class DiaryStore(private val file: File, private val maxItems: Int = 500) {
     private val json = Json {
@@ -35,8 +50,11 @@ class DiaryStore(private val file: File, private val maxItems: Int = 500) {
         encodeDefaults = true
     }
 
-    private val _entries = MutableStateFlow(load())
+    private val initial: DiaryFile = load()
+    private val _entries = MutableStateFlow(initial.entries)
     val entries: StateFlow<List<DiaryEntry>> = _entries.asStateFlow()
+    private val _summaries = MutableStateFlow(initial.summaries.associateBy { it.date })
+    val summaries: StateFlow<Map<String, DiarySummary>> = _summaries.asStateFlow()
 
     @Synchronized
     fun add(kind: String, title: String, detail: String = "", at: Long = System.currentTimeMillis()) {
@@ -50,24 +68,40 @@ class DiaryStore(private val file: File, private val maxItems: Int = 500) {
             detail = detail.trim(),
         )
         val next = (current + entry).takeLast(maxItems.coerceAtLeast(1))
-        if (save(next)) _entries.value = next
+        if (save(next, _summaries.value.values)) _entries.value = next
+    }
+
+    /** Stores the summary produced by the model API for one day. */
+    @Synchronized
+    fun putSummary(date: String, text: String, entryCount: Int) {
+        val clean = text.trim()
+        if (date.isBlank() || clean.isEmpty()) return
+        val next = _summaries.value + (date to DiarySummary(date, clean, System.currentTimeMillis(), entryCount))
+        if (save(_entries.value, next.values)) _summaries.value = next
     }
 
     @Synchronized
     fun clear() {
         runCatching { !file.exists() || file.delete() }
         _entries.value = emptyList()
+        _summaries.value = emptyMap()
     }
 
-    private fun load(): List<DiaryEntry> = runCatching {
-        if (!file.isFile) return emptyList()
-        json.decodeFromString<DiaryFile>(file.readText()).entries.takeLast(maxItems)
-    }.getOrDefault(emptyList())
+    private fun load(): DiaryFile = runCatching {
+        if (!file.isFile) return DiaryFile()
+        val parsed = json.decodeFromString<DiaryFile>(file.readText())
+        DiaryFile(
+            entries = parsed.entries.takeLast(maxItems),
+            summaries = parsed.summaries.takeLast(MAX_SUMMARIES),
+        )
+    }.getOrDefault(DiaryFile())
 
-    private fun save(entries: List<DiaryEntry>): Boolean = runCatching {
+    private fun save(entries: List<DiaryEntry>, summaries: Collection<DiarySummary>): Boolean = runCatching {
         val parent = file.parentFile ?: return false
         if (!parent.isDirectory && !parent.mkdirs()) return false
-        val text = json.encodeToString(DiaryFile(entries = entries))
+        val text = json.encodeToString(
+            DiaryFile(entries = entries, summaries = summaries.sortedBy { it.date }.takeLast(MAX_SUMMARIES)),
+        )
         val temp = File.createTempFile(".diary-", ".tmp", parent)
         try {
             FileOutputStream(temp).use { out ->
@@ -89,4 +123,9 @@ class DiaryStore(private val file: File, private val maxItems: Int = 500) {
         }
         true
     }.getOrDefault(false)
+
+    companion object {
+        /** Keep roughly four months of daily recaps. */
+        private const val MAX_SUMMARIES = 120
+    }
 }
