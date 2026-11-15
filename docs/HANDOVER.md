@@ -3,7 +3,7 @@
 > 面向接手者 / WorkBuddy。读完这一篇即可继续开发，不需要回看聊天记录。  
 > 项目路径：`f:\gowork\xllyxx\xiaoman`  
 > 交接时间：2026-11-15  
-> 功能代码基线：`5d515fc feat: stream chat replies end to end (P0-4)`（工作区干净，可编译；交接时基线为 `92d4657`）  
+> 功能代码基线：`6d11b57 feat: add the P0-5 eval harness with 15 deterministic scenarios`（工作区干净，可编译；交接时基线为 `92d4657`）  
 > 长期目标：继续开发小满，路线见 [SuperAgent 功能开发计划](superagent-plan.md)。
 
 ---
@@ -79,6 +79,7 @@ cd f:\gowork\xllyxx\xiaoman
 
 | 提交 | 内容 |
 |---|---|
+| `6d11b57` | 评测底座（P0-5）：`eval/` 场景 DSL + 15 个确定性场景 + CI 报告；见 §5.5 |
 | `5d515fc` | 流式回复端到端（P0-4）：SSE 增量、草稿气泡、可停止；见第 5 节 |
 | `92d4657` | 检查点与进度行合并为一次写盘（性能） |
 | `879b20b` | 检查点与断点恢复（P0-2） |
