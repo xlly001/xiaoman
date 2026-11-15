@@ -102,6 +102,12 @@ wash, white rounded cards and one-piece bottom dock of the reference app:
   accumulated per index into complete calls. The draft bubble updates in memory only and is not written to
   disk; when the final reply arrives it replaces the bubble under the same id and is persisted, so exactly
   one reply bubble remains.
+- **Evaluation harness**: a new pure-JVM `eval/` module drives the real agent through a scenario DSL
+  with scripted fake LLM / device / memory and a fixed clock, asserting event sequences, approval
+  requests and side effects. Fifteen built-in scenarios cover chat, memory, skill confirmation, tasks
+  and high-risk blocking (pay / send / delete / password field / prompt injection). `./gradlew :eval:run`
+  writes a text and JSON report and exits with code 1 on any failure, so CI can use it as a release gate;
+  no key, network or Android device is needed.
 
 The roadmap toward a SuperAgent (task queue, checkpoints, layered memory, skill ecosystem and
 multi-agent execution) is in [docs/superagent-plan.md](docs/superagent-plan.md) (Chinese).
@@ -113,7 +119,8 @@ New contributors and agents should start with the [handover document](docs/HANDO
 $env:JAVA_HOME = 'D:\Android\jdk17'   # JDK 17
 $env:ANDROID_HOME = 'D:\Android\sdk'  # Android SDK 35
 .\gradlew.bat :app:assembleDebug
-.\gradlew.bat :core-llm:test :core-agent:test :core-skills:test :app:testDebugUnitTest
+.\gradlew.bat :core-llm:test :core-agent:test :core-skills:test :app:testDebugUnitTest :eval:test
+.\gradlew.bat :eval:run   # 15 eval scenarios, report under eval/build/reports/eval/
 ```
 
 The APK is written to `app/build/outputs/apk/debug/app-debug.apk`. The debug manifest allows cleartext

@@ -27,6 +27,7 @@ include(
     ":ios-hands",
     ":ios-runner",
     ":web-server",
+    ":eval",
 )
 
 // The iOS runner is built on a Mac that usually has no Android SDK: -Pxiaoman.iosOnly=true skips the Android modules.

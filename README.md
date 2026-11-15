@@ -84,6 +84,7 @@ scripts/gradle.sh test :app:assembleDebug            # 之后可以离线构建
 - **记忆管理**：记忆页支持搜索、新建、编辑、删除；编辑后按 Basic Memory 格式重新写入。
 - **国际化**：新增文案全部走资源文件，中文在 `app/src/main/res/values/strings.xml`，英文在 `values-en/strings.xml`；两边各 364 个 key 且保持同步；设置页可直接切换应用语言。
 - **流式回复**：聊天回复走 SSE 流式（OpenAI 兼容 `/chat/completions` 的 `stream`），文字逐段增量显示并自动滚动；过程中可中途停止；带工具调用的流式会按片段累积成完整调用。草稿气泡只在内存里更新、不写盘，最终回复到达时才用同一 id 替换为完整文本并持久化，全程只保留一条回复气泡。
+- **评测底座**：新增纯 JVM 模块 `eval/`，用场景 DSL 驱动真实 Agent（脚本化假 LLM / 假设备 / 假记忆，固定时钟与 id），断言事件序列、审批请求与副作用。内置 15 个场景，覆盖聊天、记忆、技能确认、任务与高危拦截（付款 / 发送 / 删除 / 密码框 / 提示词注入）。`./gradlew :eval:run` 生成中文报告与 JSON，任一场景失败即退出码 1，可直接作为 CI 发布门槛；不需要 Key、网络或 Android 设备。
 
 后续演进（任务队列、检查点、分层记忆、技能生态、多智能体）见
 [SuperAgent 功能开发计划](docs/superagent-plan.md)；接手开发请先读
@@ -95,7 +96,8 @@ scripts/gradle.sh test :app:assembleDebug            # 之后可以离线构建
 $env:JAVA_HOME = 'D:\Android\jdk17'   # JDK 17
 $env:ANDROID_HOME = 'D:\Android\sdk'  # Android SDK 35
 .\gradlew.bat :app:assembleDebug
-.\gradlew.bat :core-llm:test :core-agent:test :core-skills:test :app:testDebugUnitTest
+.\gradlew.bat :core-llm:test :core-agent:test :core-skills:test :app:testDebugUnitTest :eval:test
+.\gradlew.bat :eval:run   # 15 个评测场景，报告写到 eval/build/reports/eval/
 ```
 
 产物在 `app/build/outputs/apk/debug/app-debug.apk`。首次构建会下载 Gradle 依赖，之后可离线构建。
@@ -130,6 +132,7 @@ xiaoman/
 ├── web-server/            # 网页版：服务端 + 移动端网页（见 docs/web.md）
 ├── app/             # Android App：聊天、技能、记忆、设置界面
 ├── cli/             # 技能开发者 CLI
+├── eval/            # 纯 JVM 场景评测：DSL + 假 LLM / 假设备 + 事件断言
 ├── skills/examples/ # 示例技能，也会打包进 APK
 ├── docs/            # 架构与技能文档
 └── scripts/         # 构建脚本

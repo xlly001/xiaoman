@@ -13,7 +13,7 @@
 小满是一个跑在 Android 上的私人 Agent：聊天、记忆、技能、MCP，以及通过无障碍服务替用户操作其他 App。
 
 - 技术栈：Kotlin + Jetpack Compose（Material 3），多模块 Gradle，JDK 17，minSdk 30 / targetSdk 35。
-- 模块：`core-api`、`core-llm`、`core-memory`、`core-skills`、`core-sentinel`、`core-agent`、`hands`、`core-mcp`、`app`，另有 `cli/`、`web-server/`、`ios-runner/`。
+- 模块：`core-api`、`core-llm`、`core-memory`、`core-skills`、`core-sentinel`、`core-agent`、`hands`、`core-mcp`、`app`，另有 `cli/`、`web-server/`、`ios-runner/`、`eval/`（纯 JVM 场景评测）。
 - `core-*` 是纯 JVM，不依赖 Android，因此单元测试可以脱离设备运行。
 - 所有重要判断（可恢复性、检查点、队列、安全边界）都在 `docs/superagent-plan.md` 与 `.trae/specs/xiaoman-ui/` 三份 Spec 里。
 
@@ -28,7 +28,8 @@ $env:JAVA_HOME    = 'D:\Android\jdk17'
 $env:ANDROID_HOME = 'D:\Android\sdk'
 
 cd f:\gowork\xllyxx\xiaoman
-.\gradlew.bat :core-llm:test :core-agent:test :core-skills:test :app:testDebugUnitTest
+.\gradlew.bat :core-llm:test :core-agent:test :core-skills:test :app:testDebugUnitTest :eval:test
+.\gradlew.bat :eval:run   # 15 个评测场景，报告在 eval/build/reports/eval/
 .\gradlew.bat :app:assembleDebug :app:lintDebug --offline
 ```
 
@@ -125,7 +126,7 @@ cd f:\gowork\xllyxx\xiaoman
 
 ---
 
-## 5. P0-4 流式回复（已完成）
+## 5. 阶段 0 已完成：P0-4 流式回复与 P0-5 评测底座
 
 ### 5.1 状态
 
@@ -159,20 +160,31 @@ cd f:\gowork\xllyxx\xiaoman
 
 原脚手架补丁 `docs/handover/p0-4-streaming-wip.patch` 的内容已全部实现并演进为正式代码（事件定义、重试骨架、SSE 解析、草稿气泡、穷举分支、测试、文档）。该补丁已无使用价值，**可删除**（保留也无害，但不要再次 `git apply`，会冲突）。
 
+### 5.5 P0-5 评测底座（已完成）
+
+新增纯 JVM 模块 `eval/`（`settings.gradle.kts` 已 include），不依赖 Android SDK / 网络 / Key / 真实模型：
+
+- **场景 DSL**（`Scenario.kt`）：`scenario { givenUser / givenPhoneTask / givenScreen / givenNote / chatScript / operatorScript / approve / expect* }`；断言消费 `AgentEvent` 序列与副作用（已执行动作、审批请求、审计、记忆终态、技能保存、系统提示词、任务结束）。
+- **确定性假设施**（`Fakes.kt`）：脚本化 LLM（支持 2 字符分块推流）、屏幕队列设备、内存记忆、技能仓库与用户技能存储、审批网关、审计、用户通道；固定时钟 `EVAL_CLOCK` 与递增 id。
+- **真实装配**（`Runner.kt`）：驱动真实 `XiaomanAgent`；安全场景显式 `useRealSentinel()` 装配**真实 `PolicySentinel`**，其余用宽松哨兵。约定「不得为了通过测试放宽 Sentinel」，并有一个反向自检验证安全场景确实走了真实策略。
+- **评测集**（`Scenarios.kt`）：15 个场景 — 聊天 3 / 记忆 3 / 技能确认 2 / 任务 2 / 高危拦截 5（付款、发送、删除、密码框、提示词注入）。
+- **CI 入口**（`Main.kt`）：`./gradlew :eval:run` 打印报告、写 `eval/build/reports/eval/{report.txt,report.json}`，任一场景失败退出码 1。`:eval:test` 4 项含「失败可稳定复现」自检。Windows 控制台中文可能乱码，直接看 UTF-8 的 `report.txt` 即可。
+- **验证结果**：15/15 通过；全量回归 306 个单测 0 失败；`:app:lintDebug` 通过。
+
 ---
 
 ## 6. 下一步路线
 
 按 [superagent-plan.md](superagent-plan.md)：
 
-1. **P0-4 流式回复**（已完成，见第 5 节）。
-2. **P0-3 统一工具注册表**：`ToolDescriptor`（名称/来源/风险/作用域/是否可后台/成本），Sentinel 读取描述；MCP 已有 `ConfirmPolicy`，需要与内置工具、技能统一。
-3. **P0-5 评测底座**：新增 `eval/` JVM 模块，假 LLM + 假设备 + 场景 DSL，先覆盖聊天、记忆、技能确认、任务失败、高危拦截。
+1. **P0-4 流式回复**（已完成，见 §5.1–5.4）。
+2. **P0-5 评测底座**（已完成，见 §5.5）。
+3. **P0-3 统一工具注册表**：`ToolDescriptor`（名称/来源/风险/作用域/是否可后台/成本），Sentinel 读取描述；MCP 已有 `ConfirmPolicy`，需要与内置工具、技能统一。
 4. 阶段 1：分层记忆、混合检索、用户画像、每日简报。
 5. 阶段 2：技能 v2、测试运行器、MCP 发现与权限、流程引擎 v2。
 6. 阶段 3：规划器、子代理、校验器、预算与长任务。
 
-**建议顺序**：P0-4 已完成；接下来先做 P0-5（为后续所有改动提供回归网），最后 P0-3。
+**建议顺序**：P0-4 / P0-5 已完成；接下来做 P0-3（统一工具注册表），后续所有改动提交前都应先跑 `:eval:run`。
 
 ---
 
@@ -185,7 +197,7 @@ cd f:\gowork\xllyxx\xiaoman
 5. **不要提交 Key**：设置存在加密 SharedPreferences；轨迹与会话已做脱敏。
 6. **安全边界**：付款/发送/删除必须确认；技能只能追加确认词；不要为了让测试通过而放宽 Sentinel。
 7. **平台说明**：本仓库只有 Android 客户端；Windows/macOS/Linux 没有对应源码，因此“三端同步”不适用，不要虚构桌面端改动。打包只产出 Android APK。
-8. **测试优先**：`core-*` 的纯 JVM 测试是主要回归手段；改了会话/队列/检查点必须补 `app` 单测。
+8. **测试优先**：`core-*` 的纯 JVM 测试是主要回归手段；改了会话/队列/检查点必须补 `app` 单测；改了 Agent 行为或安全策略必须补 `eval/` 场景，提交前跑 `:eval:run`（失败退出码 1）。
 
 ---
 
@@ -210,6 +222,7 @@ cd f:\gowork\xllyxx\xiaoman
 **已验证（模拟器，API 35）**
 
 - 构建、单测、lint 全绿；中英文 key 364/364。
+- 全量回归 306 个单测 0 失败；`:eval:run` 15 个评测场景 15 通过 0 失败（含 5 个高危拦截场景，报告在 `eval/build/reports/eval/`）。
 - Dock、聊天、能力、任务、记忆、小满、设置页布局正常。
 - 队列：新建任务、暂停/继续/取消、重启持久化、RUNNING 无检查点失败/有检查点恢复、任务 id 去重。
 - 任务详情内继续对话；主对话不显示会话列表。
@@ -228,7 +241,7 @@ cd f:\gowork\xllyxx\xiaoman
 ## 10. 接手后前 30 分钟建议
 
 1. 读 `docs/superagent-plan.md` 阶段 0 + `.trae/specs/xiaoman-ui/spec.md` 的 FR-15/FR-16。
-2. 跑一遍测试与 `assembleDebug`，确认本地环境。
+2. 跑一遍测试、`:eval:run` 与 `assembleDebug`，确认本地环境（评测集不需 Key / 设备）。
 3. 装 APK 到模拟器，走一遍：聊天 → 任务页新建任务 → 队列暂停/继续 → 任务详情。
 4. P0-4 已完成（见第 5 节）；`docs/handover/p0-4-streaming-wip.patch` 是遗留脚手架，可删，勿再 `git apply`。
 5. 开工前先在 `tasks.md` 认领任务，完成后按约定更新三份 Spec 与 README。
