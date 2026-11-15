@@ -123,6 +123,33 @@ class SkillAuthoringTest {
     }
 
     @Test
+    fun continueAlsoConfirmsSave() = runTest {
+        val store = FakeUserSkillStore()
+        val h = Harness(users = FakeUsers("继续"), userSkillStore = store)
+        store.exposeTo(h)
+        h.chat.tools(h.saveCall()).reply("好了")
+
+        h.agent.handle("继续保存技能", h.events, h.stop)
+
+        val result = toolResult(h)
+        assertEquals(true, result["saved"]!!.jsonPrimitive.boolean)
+        assertEquals(listOf("taxi-home" to markdown), store.saved)
+    }
+
+    @Test
+    fun continueDoesNotConfirmDelete() = runTest {
+        val store = FakeUserSkillStore(bundled = mapOf("taxi-home" to bundledMarkdown))
+        store.save("taxi-home", markdown)
+        val h = Harness(users = FakeUsers("继续"), userSkillStore = store)
+        h.chat.tools(ToolCall("c1", AgentTools.SKILL_DELETE, args("name" to "taxi-home"))).reply("已取消")
+
+        h.agent.handle("继续删除技能", h.events, h.stop)
+
+        assertEquals(false, toolResult(h)["deleted"]!!.jsonPrimitive.boolean)
+        assertTrue(store.deleted.isEmpty())
+    }
+
+    @Test
     fun cancelWritesNothing() = runTest {
         val store = FakeUserSkillStore()
         val h = Harness(users = FakeUsers("取消"), userSkillStore = store)

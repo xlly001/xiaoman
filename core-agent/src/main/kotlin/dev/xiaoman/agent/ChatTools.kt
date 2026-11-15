@@ -28,6 +28,16 @@ import kotlinx.serialization.json.putJsonArray
 
 internal class ToolArgumentException(message: String) : Exception(message)
 
+/** Answers that count as "yes" for a confirmation question. */
+private val BASE_CONFIRMATIONS = setOf("确认", "是", "好", "可以", "y", "yes")
+
+/**
+ * Saving a skill is reversible, so "continue / save" also counts as consent. Deleting a skill
+ * stays strict and still requires an explicit "确认".
+ */
+private val SAVE_CONFIRMATIONS = BASE_CONFIRMATIONS +
+    setOf("继续", "确定", "保存", "确认保存", "ok", "okay", "save", "continue", "confirm")
+
 /** Runs the chat model's tool calls. Argument and runtime errors become `{"error": ...}` tool results. */
 internal class ChatTools(
     private val memory: MemoryStore,
@@ -192,10 +202,13 @@ internal class ChatTools(
         }.toString()
     }
 
-    private suspend fun confirmed(taskId: String, question: String): Boolean {
+    private suspend fun confirmed(
+        taskId: String,
+        question: String,
+        accepted: Set<String> = BASE_CONFIRMATIONS,
+    ): Boolean {
         val channel = users ?: throw IllegalStateException("缺少用户确认通道")
-        return channel.ask(taskId, question, takeover = false).trim().lowercase() in
-            setOf("确认", "是", "好", "可以", "y", "yes")
+        return channel.ask(taskId, question, takeover = false).trim().lowercase() in accepted
     }
 
     private suspend fun saveSkill(args: JsonObject, taskId: String): String {
@@ -224,7 +237,7 @@ internal class ChatTools(
             append("\n\nSKILL.md：\n").append(draft)
             append("\n\n回复“确认”保存，其他回复取消。")
         }
-        if (!confirmed(taskId, question)) return buildJsonObject {
+        if (!confirmed(taskId, question, SAVE_CONFIRMATIONS)) return buildJsonObject {
             put("saved", false); put("reason", "用户取消")
         }.toString()
         val path = withContext(Dispatchers.IO) { withValidName { store.save(name, markdown) } }

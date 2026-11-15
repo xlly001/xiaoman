@@ -78,6 +78,7 @@ internal fun XiaomanIsland(
     session: AgentSession,
     modifier: Modifier = Modifier,
     onAnswerQuestion: () -> Unit = {},
+    onAnswer: (String) -> Unit = {},
 ) {
     val state: IslandState? = approval?.let(IslandState::Approval)
         ?: question?.let(IslandState::Question)
@@ -97,7 +98,7 @@ internal fun XiaomanIsland(
     ) { current ->
         when (current) {
             is IslandState.Approval -> ApprovalIsland(current.pending, session)
-            is IslandState.Question -> QuestionIsland(current.pending, onAnswerQuestion)
+            is IslandState.Question -> QuestionIsland(current.pending, onAnswerQuestion, onAnswer)
             null -> Unit
         }
     }
@@ -204,17 +205,49 @@ private fun ApprovalIsland(pending: PendingApproval, session: AgentSession) {
 }
 
 @Composable
-private fun QuestionIsland(pending: PendingQuestion, onAnswer: () -> Unit) {
-    IslandShell(title = stringResource(R.string.question_island_title)) {
-        Text(
-            pending.question,
-            style = MaterialTheme.typography.bodySmall,
-            maxLines = 4,
-            overflow = TextOverflow.Ellipsis,
-        )
-        Spacer(Modifier.height(4.dp))
-        TextButton(onClick = onAnswer, contentPadding = PaddingValues(0.dp)) {
-            Text(stringResource(R.string.question_island_answer), style = MaterialTheme.typography.labelMedium)
+private fun QuestionIsland(
+    pending: PendingQuestion,
+    onAnswerQuestion: () -> Unit,
+    onAnswer: (String) -> Unit,
+) {
+    // Skill save/delete asks for a literal "确认"; giving it real buttons avoids the user typing
+    // "确认" into a fresh chat turn while the tool question arrives a moment later.
+    val confirmation = pending.question.contains("回复“确认”保存") || pending.question.contains("回复“确认”删除")
+    if (confirmation) {
+        var responding by remember(pending.id) { mutableStateOf(false) }
+        IslandShell(title = stringResource(R.string.question_island_title)) {
+            Text(
+                pending.question,
+                style = MaterialTheme.typography.bodySmall,
+                maxLines = 4,
+                overflow = TextOverflow.Ellipsis,
+            )
+            Spacer(Modifier.height(8.dp))
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                OutlinedButton(
+                    onClick = { responding = true; onAnswer("取消") },
+                    enabled = !responding,
+                    modifier = Modifier.weight(1f),
+                ) { Text(stringResource(R.string.question_island_cancel)) }
+                Button(
+                    onClick = { responding = true; onAnswer("确认") },
+                    enabled = !responding,
+                    modifier = Modifier.weight(1f),
+                ) { Text(stringResource(R.string.question_island_confirm)) }
+            }
+        }
+    } else {
+        IslandShell(title = stringResource(R.string.question_island_title)) {
+            Text(
+                pending.question,
+                style = MaterialTheme.typography.bodySmall,
+                maxLines = 4,
+                overflow = TextOverflow.Ellipsis,
+            )
+            Spacer(Modifier.height(4.dp))
+            TextButton(onClick = onAnswerQuestion, contentPadding = PaddingValues(0.dp)) {
+                Text(stringResource(R.string.question_island_answer), style = MaterialTheme.typography.labelMedium)
+            }
         }
     }
 }

@@ -21,6 +21,8 @@
     <string name="chat_question_label">Xiaoman asks</string>
     <string name="question_island_title">Xiaoman is asking</string>
     <string name="question_island_answer">Answer</string>
+    <string name="question_island_confirm">Confirm</string>
+    <string name="question_island_cancel">Cancel</string>
     <string name="chat_takeover_label">You need to take over</string>
     <string name="chat_error_label">Something went wrong</string>
     <string name="banner_accessibility">Accessibility is off, so Xiaoman cannot operate other apps yet.</string>

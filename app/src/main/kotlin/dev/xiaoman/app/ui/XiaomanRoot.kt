@@ -247,6 +247,7 @@ fun XiaomanRoot(graph: AppGraph, darkTheme: Boolean = isSystemInDarkTheme()) {
                 session = graph.session,
                 modifier = Modifier.align(Alignment.TopCenter).zIndex(20f),
                 onAnswerQuestion = { searchOpen = false },
+                onAnswer = { graph.session.submit(it) },
             )
         }
     }
