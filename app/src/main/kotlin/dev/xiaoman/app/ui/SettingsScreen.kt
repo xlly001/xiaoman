@@ -503,6 +503,24 @@ fun SettingsScreen(graph: AppGraph) {
                         )
                     }
                 }
+                Spacer(Modifier.height(8.dp))
+                Text(
+                    stringResource(R.string.settings_media_override_hint),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                MediaModeOverrideRow(
+                    label = stringResource(R.string.settings_media_asr),
+                    value = form.asrEngineMode,
+                ) { form = form.copy(asrEngineMode = it); saved = false }
+                MediaModeOverrideRow(
+                    label = stringResource(R.string.settings_media_tts),
+                    value = form.ttsEngineMode,
+                ) { form = form.copy(ttsEngineMode = it); saved = false }
+                MediaModeOverrideRow(
+                    label = stringResource(R.string.settings_media_ocr),
+                    value = form.ocrEngineMode,
+                ) { form = form.copy(ocrEngineMode = it); saved = false }
                 Spacer(Modifier.height(6.dp))
                 Text(
                     stringResource(
@@ -1040,4 +1058,36 @@ private tailrec fun Context.activity(): Activity? = when (this) {
 private fun FolderLine(label: String, path: String) {
     Text(label, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
     Text(path, style = MaterialTheme.typography.labelSmall, fontFamily = FontFamily.Monospace, color = MaterialTheme.colorScheme.onSurfaceVariant)
+}
+
+/** One capability's engine override: empty value means "follow the default above". */
+@Composable
+private fun MediaModeOverrideRow(label: String, value: String, onChange: (String) -> Unit) {
+    var open by remember { mutableStateOf(false) }
+    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+        Text(label, Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium)
+        Box {
+            TextButton(onClick = { open = true }) {
+                Text(stringResource(mediaModeLabel(value)))
+            }
+            DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
+                listOf("", MediaEngineMode.AUTO.name, MediaEngineMode.DEEPSEEK.name, MediaEngineMode.SYSTEM.name).forEach { option ->
+                    DropdownMenuItem(
+                        text = { Text(stringResource(mediaModeLabel(option))) },
+                        onClick = {
+                            open = false
+                            onChange(option)
+                        },
+                    )
+                }
+            }
+        }
+    }
+}
+
+private fun mediaModeLabel(value: String): Int = when (value) {
+    MediaEngineMode.AUTO.name -> R.string.settings_media_auto
+    MediaEngineMode.DEEPSEEK.name -> R.string.settings_media_deepseek
+    MediaEngineMode.SYSTEM.name -> R.string.settings_media_system
+    else -> R.string.settings_media_follow_default
 }

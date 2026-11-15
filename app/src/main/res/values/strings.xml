@@ -430,6 +430,11 @@
     <string name="settings_media_deepseek">DeepSeek 官方</string>
     <string name="settings_media_system">系统内置</string>
     <string name="settings_media_active">当前引擎：ASR %1$s · TTS %2$s · OCR %3$s</string>
+    <string name="settings_media_override_hint">可以分别指定：例如 ASR 用 DeepSeek、TTS 用系统内置。「跟随默认」使用上面的引擎模式。</string>
+    <string name="settings_media_follow_default">跟随默认</string>
+    <string name="settings_media_asr">语音识别</string>
+    <string name="settings_media_tts">朗读</string>
+    <string name="settings_media_ocr">文字识别</string>
     <string name="settings_media_endpoint">工具端点：%1$s</string>
     <string name="settings_media_voice">朗读音色</string>
     <string name="settings_media_voice_stella">海星（女声）</string>

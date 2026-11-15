@@ -430,6 +430,11 @@
     <string name="settings_media_deepseek">DeepSeek</string>
     <string name="settings_media_system">System</string>
     <string name="settings_media_active">Active engines: ASR %1$s · TTS %2$s · OCR %3$s</string>
+    <string name="settings_media_override_hint">Override each capability, e.g. DeepSeek ASR with system TTS. “Follow default” uses the engine mode above.</string>
+    <string name="settings_media_follow_default">Follow default</string>
+    <string name="settings_media_asr">Speech recognition</string>
+    <string name="settings_media_tts">Read aloud</string>
+    <string name="settings_media_ocr">Text recognition</string>
     <string name="settings_media_endpoint">Tools endpoint: %1$s</string>
     <string name="settings_media_voice">Read-aloud voice</string>
     <string name="settings_media_voice_stella">Stella (female)</string>

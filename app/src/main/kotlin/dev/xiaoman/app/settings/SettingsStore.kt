@@ -42,6 +42,9 @@ class SettingsStore(private val plain: SharedPreferences, internal val secret: S
             putBoolean(NOTIFICATIONS_ENABLED, settings.notificationsEnabled)
             putInt(CHAT_HISTORY_LIMIT, settings.chatHistoryLimit)
             putString(MEDIA_MODE, settings.mediaEngineMode.name)
+            if (settings.asrEngineMode == null) remove(MEDIA_ASR_MODE) else putString(MEDIA_ASR_MODE, settings.asrEngineMode.name)
+            if (settings.ttsEngineMode == null) remove(MEDIA_TTS_MODE) else putString(MEDIA_TTS_MODE, settings.ttsEngineMode.name)
+            if (settings.ocrEngineMode == null) remove(MEDIA_OCR_MODE) else putString(MEDIA_OCR_MODE, settings.ocrEngineMode.name)
             putString(MEDIA_TOOLS_BASE, settings.mediaToolsBaseUrl)
             putString(MEDIA_TTS_VOICE, settings.ttsVoice.name)
             putBoolean(MEDIA_READ_ALOUD, settings.readRepliesAloud)
@@ -79,6 +82,9 @@ class SettingsStore(private val plain: SharedPreferences, internal val secret: S
             notificationsEnabled = plain.getBoolean(NOTIFICATIONS_ENABLED, defaults.notificationsEnabled),
             chatHistoryLimit = plain.getInt(CHAT_HISTORY_LIMIT, defaults.chatHistoryLimit),
             mediaEngineMode = enumPref(MEDIA_MODE, defaults.mediaEngineMode, MediaEngineMode::valueOf),
+            asrEngineMode = enumPrefOrNull(MEDIA_ASR_MODE, MediaEngineMode::valueOf),
+            ttsEngineMode = enumPrefOrNull(MEDIA_TTS_MODE, MediaEngineMode::valueOf),
+            ocrEngineMode = enumPrefOrNull(MEDIA_OCR_MODE, MediaEngineMode::valueOf),
             mediaToolsBaseUrl = plain.getString(MEDIA_TOOLS_BASE, null).orEmpty(),
             ttsVoice = enumPref(MEDIA_TTS_VOICE, defaults.ttsVoice, TtsVoice::valueOf),
             readRepliesAloud = plain.getBoolean(MEDIA_READ_ALOUD, defaults.readRepliesAloud),
@@ -88,6 +94,10 @@ class SettingsStore(private val plain: SharedPreferences, internal val secret: S
 
     private fun <T : Enum<T>> enumPref(key: String, fallback: T, parse: (String) -> T): T =
         plain.getString(key, null)?.let { runCatching { parse(it) }.getOrNull() } ?: fallback
+
+    /** Missing or invalid means "follow the default media engine mode". */
+    private fun <T : Enum<T>> enumPrefOrNull(key: String, parse: (String) -> T): T? =
+        plain.getString(key, null)?.let { runCatching { parse(it) }.getOrNull() }
 
     private fun seedProfiles(chat: ModelSettings, operator: ModelSettings): List<ModelProfile> = buildList {
         if (chat.model.isNotBlank()) {
@@ -163,6 +173,9 @@ class SettingsStore(private val plain: SharedPreferences, internal val secret: S
         private const val MAX_STEPS = "agent.maxSteps"
         private const val LEARN = "agent.learnFromSuccess"
         private const val MEDIA_MODE = "media.engineMode"
+        private const val MEDIA_ASR_MODE = "media.asrEngineMode"
+        private const val MEDIA_TTS_MODE = "media.ttsEngineMode"
+        private const val MEDIA_OCR_MODE = "media.ocrEngineMode"
         private const val MEDIA_TOOLS_BASE = "media.toolsBaseUrl"
         private const val MEDIA_TTS_VOICE = "media.ttsVoice"
         private const val MEDIA_READ_ALOUD = "media.readRepliesAloud"

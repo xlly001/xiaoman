@@ -58,8 +58,12 @@ data class AppSettings(
     val requestTimeoutSeconds: Int = 120,
     val notificationsEnabled: Boolean = true,
     val chatHistoryLimit: Int = 500,
-    /** Which implementation serves the built-in ASR / TTS / OCR capabilities. */
+    /** Which implementation serves the built-in ASR / TTS / OCR capabilities by default. */
     val mediaEngineMode: MediaEngineMode = MediaEngineMode.AUTO,
+    /** Per-capability overrides; null follows [mediaEngineMode]. */
+    val asrEngineMode: MediaEngineMode? = null,
+    val ttsEngineMode: MediaEngineMode? = null,
+    val ocrEngineMode: MediaEngineMode? = null,
     /** Optional override for the DeepSeek tools base URL; blank derives it from [chat].baseUrl. */
     val mediaToolsBaseUrl: String = "",
     /** Voice used by DeepSeek TTS; the system engine ignores it. */
@@ -106,6 +110,9 @@ data class SettingsForm(
     val notificationsEnabled: Boolean = true,
     val chatHistoryLimit: String = "500",
     val mediaEngineMode: String = MediaEngineMode.AUTO.name,
+    val asrEngineMode: String = "",
+    val ttsEngineMode: String = "",
+    val ocrEngineMode: String = "",
     val mediaToolsBaseUrl: String = "",
     val ttsVoice: String = TtsVoice.STELLA.name,
     val readRepliesAloud: Boolean = false,
@@ -175,6 +182,9 @@ data class SettingsForm(
             notificationsEnabled = notificationsEnabled,
             chatHistoryLimit = historyLimit,
             mediaEngineMode = enumValue(mediaEngineMode, MediaEngineMode.AUTO),
+            asrEngineMode = enumValueOrNull(asrEngineMode),
+            ttsEngineMode = enumValueOrNull(ttsEngineMode),
+            ocrEngineMode = enumValueOrNull(ocrEngineMode),
             mediaToolsBaseUrl = mediaToolsBaseUrl.trim(),
             ttsVoice = enumValue(ttsVoice, TtsVoice.STELLA),
             readRepliesAloud = readRepliesAloud,
@@ -197,6 +207,9 @@ data class SettingsForm(
             notificationsEnabled = s.notificationsEnabled,
             chatHistoryLimit = s.chatHistoryLimit.toString(),
             mediaEngineMode = s.mediaEngineMode.name,
+            asrEngineMode = s.asrEngineMode?.name.orEmpty(),
+            ttsEngineMode = s.ttsEngineMode?.name.orEmpty(),
+            ocrEngineMode = s.ocrEngineMode?.name.orEmpty(),
             mediaToolsBaseUrl = s.mediaToolsBaseUrl,
             ttsVoice = s.ttsVoice.name,
             readRepliesAloud = s.readRepliesAloud,
@@ -207,5 +220,9 @@ data class SettingsForm(
 
         private inline fun <reified T : Enum<T>> enumValue(raw: String, fallback: T): T =
             runCatching { enumValueOf<T>(raw.trim()) }.getOrDefault(fallback)
+
+        /** Empty means "follow the default media engine mode". */
+        private fun enumValueOrNull(raw: String): MediaEngineMode? =
+            raw.trim().takeIf { it.isNotEmpty() }?.let { runCatching { MediaEngineMode.valueOf(it) }.getOrNull() }
     }
 }

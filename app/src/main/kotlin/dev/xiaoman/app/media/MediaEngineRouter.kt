@@ -53,6 +53,9 @@ class MediaEngineRouter(
         val s = settings()
         val key = listOf(
             s.mediaEngineMode.name,
+            s.asrEngineMode?.name,
+            s.ttsEngineMode?.name,
+            s.ocrEngineMode?.name,
             s.providerId,
             s.chat.baseUrl,
             s.chat.apiKey,
@@ -69,11 +72,15 @@ class MediaEngineRouter(
 
     private fun build(s: AppSettings): MediaEngines {
         val deepSeekProvider = isDeepSeek(s)
-        val useDeepSeek = when (s.mediaEngineMode) {
+        fun useDeepSeek(mode: MediaEngineMode): Boolean = when (mode) {
             MediaEngineMode.AUTO -> deepSeekProvider
             MediaEngineMode.DEEPSEEK -> true
             MediaEngineMode.SYSTEM -> false
         }
+        // A capability can override the shared default, e.g. DeepSeek ASR + system TTS.
+        val asrDeepSeek = useDeepSeek(s.asrEngineMode ?: s.mediaEngineMode)
+        val ttsDeepSeek = useDeepSeek(s.ttsEngineMode ?: s.mediaEngineMode)
+        val ocrDeepSeek = useDeepSeek(s.ocrEngineMode ?: s.mediaEngineMode)
         val base = s.mediaToolsBaseUrl.trim().ifBlank {
             if (deepSeekProvider) s.chat.baseUrl else OFFICIAL_TOOLS_BASE
         }
@@ -95,11 +102,11 @@ class MediaEngineRouter(
         val visionOcr by lazy { VisionModelOcrEngine(chat) }
 
         return MediaEngines(
-            asr = if (useDeepSeek) deepSeekAsr else systemAsr,
-            tts = if (useDeepSeek) deepSeekTts else systemTts,
-            ocr = if (useDeepSeek) deepSeekOcr else visionOcr,
+            asr = if (asrDeepSeek) deepSeekAsr else systemAsr,
+            tts = if (ttsDeepSeek) deepSeekTts else systemTts,
+            ocr = if (ocrDeepSeek) deepSeekOcr else visionOcr,
             mode = s.mediaEngineMode,
-            endpoint = if (useDeepSeek) endpoint else "-",
+            endpoint = if (asrDeepSeek || ttsDeepSeek || ocrDeepSeek) endpoint else "-",
             deepSeekProvider = deepSeekProvider,
         )
     }
