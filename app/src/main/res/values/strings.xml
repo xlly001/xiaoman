@@ -18,7 +18,7 @@
     <string name="chat_send">发送</string>
     <string name="chat_stop">停止</string>
     <string name="chat_question_label">小满问</string>
-    <string name="question_island_title">小满在问你</string>
+    <string name="question_island_title">在问你</string>
     <string name="question_island_answer">去回答</string>
     <string name="question_island_confirm">确认</string>
     <string name="question_island_cancel">取消</string>

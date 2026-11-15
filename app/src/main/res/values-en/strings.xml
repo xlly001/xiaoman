@@ -19,7 +19,7 @@
     <string name="chat_send">Send</string>
     <string name="chat_stop">Stop</string>
     <string name="chat_question_label">Xiaoman asks</string>
-    <string name="question_island_title">Xiaoman is asking</string>
+    <string name="question_island_title">is asking</string>
     <string name="question_island_answer">Answer</string>
     <string name="question_island_confirm">Confirm</string>
     <string name="question_island_cancel">Cancel</string>
