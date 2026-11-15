@@ -3,7 +3,7 @@
 > 面向接手者 / WorkBuddy。读完这一篇即可继续开发，不需要回看聊天记录。  
 > 项目路径：`f:\gowork\xllyxx\xiaoman`  
 > 交接时间：2026-11-15  
-> 功能代码基线：`6d11b57 feat: add the P0-5 eval harness with 15 deterministic scenarios`（工作区干净，可编译；交接时基线为 `92d4657`）  
+> 功能代码基线：`fc82e1b feat: emulator E2E harness, Muse polish and task reliability fixes`（本地提交，未 push；交接时基线为 `92d4657`）  
 > 长期目标：继续开发小满，路线见 [SuperAgent 功能开发计划](superagent-plan.md)。
 
 ---
@@ -81,6 +81,7 @@ cd f:\gowork\xllyxx\xiaoman
 
 | 提交 | 内容 |
 |---|---|
+| `fc82e1b` | 模拟器端到端验收与可靠性修复：Muse 视觉（透明磨砂顶栏 / 全屏渐变 / 头像 / 日记卡片）、立即停止、续跑任务卡复用与历史去重、`[DONE]` 保持连接修复、debug 队列广播、`scripts/e2e/` 工具链；见 §5.6 |
 | `6d11b57` | 评测底座（P0-5）：`eval/` 场景 DSL + 15 个确定性场景 + CI 报告；见 §5.5 |
 | `5d515fc` | 流式回复端到端（P0-4）：SSE 增量、草稿气泡、可停止；见第 5 节 |
 | `92d4657` | 检查点与进度行合并为一次写盘（性能） |
