@@ -94,6 +94,8 @@ fun ChatDock(
     onDraftChange: (String) -> Unit,
     onSent: () -> Unit,
     keyboardOpen: Boolean,
+    /** When set, the composer sends into this task thread instead of the main chat. */
+    activeTaskId: String? = null,
     modifier: Modifier = Modifier,
 ) {
     val session = graph.session
@@ -107,7 +109,12 @@ fun ChatDock(
     var addMenu by remember { mutableStateOf(false) }
 
     fun send(text: String, images: List<ByteArray>) {
-        when (session.submit(text, images)) {
+        val result = if (activeTaskId != null) {
+            session.submitToThread(activeTaskId, text, images)
+        } else {
+            session.submit(text, images)
+        }
+        when (result) {
             AgentSession.Submit.Busy -> Toast.makeText(context, R.string.session_busy, Toast.LENGTH_SHORT).show()
             AgentSession.Submit.Empty -> Unit
             else -> {
@@ -256,6 +263,7 @@ fun ChatDock(
                                     stringResource(
                                         when {
                                             voice.listening -> R.string.chat_listening
+                                            activeTaskId != null -> R.string.chat_thread_hint
                                             question != null -> R.string.chat_answer_hint
                                             else -> R.string.chat_input_hint
                                         },

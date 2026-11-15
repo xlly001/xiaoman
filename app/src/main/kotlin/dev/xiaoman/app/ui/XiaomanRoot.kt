@@ -114,16 +114,18 @@ fun XiaomanRoot(graph: AppGraph) {
                     graph = graph,
                     selected = tab,
                     onSelect = {
+                        openTaskId = null
                         tab = it
-                        if (it != Tab.CHAT) openTaskId = null
                     },
                     draft = draft,
                     onDraftChange = { draft = it },
                     onSent = {
-                        tab = Tab.CHAT
-                        openTaskId = null
+                        // A task thread keeps the user in that conversation; the main chat
+                        // returns to the chat tab after sending.
+                        if (openTaskId == null) tab = Tab.CHAT
                     },
                     keyboardOpen = keyboardOpen,
+                    activeTaskId = openTaskId,
                     modifier = Modifier.align(Alignment.BottomCenter),
                 )
             }

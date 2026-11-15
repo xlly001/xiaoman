@@ -13,6 +13,7 @@
 
     <!-- Chat -->
     <string name="chat_input_hint">和小满说点什么</string>
+    <string name="chat_thread_hint">继续和这个任务说…</string>
     <string name="chat_answer_hint">回答小满的问题</string>
     <string name="chat_send">发送</string>
     <string name="chat_stop">停止</string>

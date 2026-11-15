@@ -46,6 +46,7 @@ class AgentSessionTest {
             listener: AgentListener,
             stop: StopSignal,
             images: List<ByteArray>,
+            taskId: String?,
         ) {
             val answer = users().ask("t1", "去哪里？", false)
             listener.onEvent(AgentEvent.Reply("t1", "好的，去$answer"))

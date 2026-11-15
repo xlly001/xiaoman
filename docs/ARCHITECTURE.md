@@ -112,7 +112,7 @@ Agent 会按目标检索 `howto` 笔记，把命中结果放进操作提示词�
 | 内容 | 文件 | 手机位置 / 说明 |
 |---|---|---|
 | 会话历史 | `app/session/ChatHistoryStore.kt` | `<external files>/chat/history.json`，默认 500 条，可在设置中调为 50–2000；原子写入；「清空会话」只删这个文件 |
-| 任务子对话 | `app/session/TaskThreadStore.kt` | `<external files>/chat/tasks.json`；每个手机任务一个线程，最多 100 个任务、每任务 200 条记录；主对话只保留 `ChatItem.TaskEntry` 卡片 |
+| 任务子对话 | `app/session/TaskThreadStore.kt` | `<external files>/chat/tasks.json`；每个手机任务一个线程，最多 100 个任务、每任务 200 条记录；任务详情可继续对话，主对话只保留 `ChatItem.TaskEntry` 卡片 |
 | 小满日记 | `app/diary/DiaryStore.kt` | `<external files>/diary/diary.json`；任务完成/失败与记忆更新写入，最多 500 条，按天分页 |
 | 全局 Dock | `app/ui/ChatDock.kt` | 输入框 + 导航合并为一张近不透明卡片，外圈透明；所有页签共用草稿；附件、语音、发送/停止都在这张卡里 |
 | 能力页 | `app/ui/CapabilitiesScreen.kt` | 「技能 / 服务」分段切换；复用 `SkillsScreen` 与 `McpScreen`，隐藏重复标题 |
@@ -155,13 +155,18 @@ Agent 会按目标检索 `howto` 笔记，把命中结果放进操作提示词�
 - 手机任务事件按 `taskId` 路由：`PhoneTaskStarted` 创建线程并向主对话加入 `TaskEntry`，
   `Step*`/`NeedsUser`/`Failed` 只写线程，`PhoneTaskFinished` 完成后把同一张任务卡更新为完成/失败。
   `SkillChosen` 早于 `PhoneTaskStarted`，因此不单独写入主对话。
+- 任务详情可继续对话：`AgentSession.submitToThread(taskId, text, images)` 用 `thread-<id>` 作为本轮
+  turn id 调用 `Agent.handle`，监听器按 turn id 把 `Reply`/`ToolCalled`/`MemoryUpdated`/`Failed`
+  写回该任务线程；其他事件（新手机任务）交给主监听器，继续创建新的任务线程与主对话任务卡。
+  发送前会把任务目标、状态、摘要和最近 12 条记录拼进提示词，保证子对话有上下文。
+- 主对话只保留与小满的会话；任务会话统一从「任务」页或主对话任务卡进入。
 - 附件链路：`ChatDock` 读图/拍照 → 最长边 1280px PNG → `AgentSession.submit(images)` →
   `Agent.handle(..., images)` → `ChatMessage.user(text, images)` → `ContentPart.ImagePng`。
   文本文件在客户端读取（≤20KB）后内联进消息；历史只保存 `ChatItem.User.imageCount`。
 
 新增界面文案全部走 `app/src/main/res/values/strings.xml`，英文翻译在
 `values-en/strings.xml`；新增文案时必须同时补两边，避免中文写死在 Compose 代码里。
-当前两边各 350 个 key。
+当前两边各 351 个 key。
 
 真机验收：在聊天页输入一句话 → 杀进程重开，历史仍在；新建一条常用指令 → 重开仍在；
 点麦克风授权后说一句话 → 文字进入输入框；设置页分别测试聊天/操作模型 → 成功显示延迟，失败显示

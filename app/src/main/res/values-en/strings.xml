@@ -14,6 +14,7 @@
 
     <!-- Chat -->
     <string name="chat_input_hint">Tell Xiaoman what to do</string>
+    <string name="chat_thread_hint">Continue this task…</string>
     <string name="chat_answer_hint">Answer Xiaoman\'s question</string>
     <string name="chat_send">Send</string>
     <string name="chat_stop">Stop</string>

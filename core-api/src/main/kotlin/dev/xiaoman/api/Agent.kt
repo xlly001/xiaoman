@@ -67,6 +67,8 @@ interface Agent {
         listener: AgentListener,
         stop: StopSignal,
         images: List<ByteArray> = emptyList(),
+        /** Optional turn id so a sub-conversation can route its own events. */
+        taskId: String? = null,
     )
 
     /** Runs one phone task directly (used by the developer CLI and skill tests). */

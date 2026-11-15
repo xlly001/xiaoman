@@ -198,6 +198,78 @@ class AgentSession(
     }
 
     /**
+     * Continues one task's own conversation. The user message and Xiaoman's reply stay in that
+     * thread; phone tasks started from here are routed to the main listener as new threads.
+     */
+    fun submitToThread(taskId: String, text: String, images: List<ByteArray> = emptyList()): Submit {
+        val message = text.trim()
+        if (message.isEmpty() && images.isEmpty()) return Submit.Empty
+        val thread = taskThreads?.get(taskId) ?: return Submit.Empty
+
+        val pending = _question.value
+        if (pending != null && pending.taskId == taskId && pending.answer.complete(message)) {
+            taskThreads.append(taskId, ChatItem.User(ids.incrementAndGet(), message, imageCount = images.size))
+            return Submit.Answered
+        }
+
+        val agent = agent()
+        if (agent == null) {
+            taskThreads.append(taskId, ChatItem.User(ids.incrementAndGet(), message, imageCount = images.size))
+            taskThreads.append(taskId, ChatItem.Error(ids.incrementAndGet(), texts.notConfigured))
+            return Submit.NotConfigured
+        }
+
+        val turnId = "thread-${ids.incrementAndGet()}"
+        val threadListener = AgentListener { event ->
+            if (event.taskId == turnId) {
+                when (event) {
+                    is AgentEvent.Reply,
+                    is AgentEvent.ToolCalled,
+                    is AgentEvent.MemoryUpdated,
+                    is AgentEvent.Failed,
+                    -> stepText.chatItem(event, ids.incrementAndGet())?.let { taskThreads?.append(taskId, it) }
+                    else -> Unit
+                }
+            } else {
+                // A phone task started inside this turn keeps its own task thread and main-chat entry.
+                listener.onEvent(event)
+            }
+        }
+        val started = launch(null) {
+            agent.handle(threadPrompt(thread, message), threadListener, stopSignal, images, taskId = turnId)
+        }
+        if (!started) return Submit.Busy
+        taskThreads.append(taskId, ChatItem.User(ids.incrementAndGet(), message, imageCount = images.size))
+        return Submit.Started
+    }
+
+    private fun threadPrompt(thread: TaskThread, message: String): String = buildString {
+        appendLine("【任务子对话】")
+        appendLine("目标：${thread.goal}")
+        appendLine(
+            "状态：" + when {
+                thread.running -> "进行中"
+                thread.success == true -> "已完成"
+                else -> "未完成"
+            },
+        )
+        if (thread.summary.isNotBlank()) appendLine("结果：${thread.summary}")
+        val transcript = thread.items.takeLast(12).mapNotNull(::threadLine).joinToString("\n")
+        if (transcript.isNotBlank()) appendLine("已有记录：\n$transcript")
+        appendLine("用户现在说：" + message.ifBlank { "（发送了图片）" })
+        append("请结合任务上下文直接回答。需要继续操作手机时可以调用 phone_task。")
+    }
+
+    private fun threadLine(item: ChatItem): String? = when (item) {
+        is ChatItem.User -> "用户：${item.text}" + if (item.imageCount > 0) "（含图片）" else ""
+        is ChatItem.Assistant -> "小满：${item.text}"
+        is ChatItem.Progress -> item.text
+        is ChatItem.Question -> "问题：${item.text}"
+        is ChatItem.Error -> "错误：${item.text}"
+        is ChatItem.TaskEntry -> null
+    }
+
+    /**
      * Runs one phone task directly (debug bridge). [runId] becomes the task id and trace folder;
      * an invalid or missing one is replaced. Returns false when it could not start; the trace then
      * already holds Failed + PhoneTaskFinished for that run.

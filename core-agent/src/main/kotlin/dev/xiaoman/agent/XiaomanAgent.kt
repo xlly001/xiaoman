@@ -62,8 +62,9 @@ class XiaomanAgent(
         listener: AgentListener,
         stop: StopSignal,
         images: List<ByteArray>,
+        taskId: String?,
     ) {
-        val taskId = idFactory()
+        val turnId = taskId ?: idFactory()
         val emit: (AgentEvent) -> Unit = listener::onEvent
         val tools = ChatTools(memory, skills, clock, reminders, externalTools, phoneTasks = config.phoneTasks,
             userSkillStore = userSkillStore, users = users) { goal, skill ->
@@ -88,19 +89,19 @@ class XiaomanAgent(
                     break
                 }
                 if (text.isNotEmpty()) {
-                    emit(AgentEvent.Reply(taskId, text))
+                    emit(AgentEvent.Reply(turnId, text))
                     lastText = text
                 }
                 turn += ChatMessage(ChatRole.ASSISTANT, listOf(ContentPart.Text(response.text)), toolCalls = response.toolCalls)
                 for (call in response.toolCalls) {
-                    turn += ChatMessage.tool(call.id, tools.execute(call, taskId, emit))
+                    turn += ChatMessage.tool(call.id, tools.execute(call, turnId, emit))
                 }
                 if (stop.stopped) break
             }
-            if (!finalText.isNullOrEmpty()) emit(AgentEvent.Reply(taskId, finalText))
+            if (!finalText.isNullOrEmpty()) emit(AgentEvent.Reply(turnId, finalText))
             remember(userMessage, finalText?.takeIf { it.isNotEmpty() } ?: lastText)
         } catch (e: LlmException) {
-            emit(AgentEvent.Failed(taskId, Prompts.llmFailed(e)))
+            emit(AgentEvent.Failed(turnId, Prompts.llmFailed(e)))
         }
     }
 

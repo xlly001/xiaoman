@@ -58,8 +58,8 @@ wash, white rounded cards and one-piece bottom dock of the reference app:
   the chat menu can clear them without touching memory or skills. The default cap is 500 rows and can
   be changed to 50–2000 in Settings.
 - **Task sub-conversations**: every phone task gets its own thread in `chat/tasks.json`; the main chat
-  only keeps one task card (running/done/failed) under the message. Tapping it opens the task detail
-  with all steps expanded.
+  only keeps one task card (running/done/failed) under the message. The task detail is a real
+  conversation: the dock composer sends into that thread and Xiaoman's reply stays there.
 - **Search**: the top-right menu searches the main conversation and every task thread; task hits open
   the thread directly.
 - **Xiaoman diary**: the “Xiaoman” tab shows one horizontally swipeable card per day, fed by finished
@@ -87,7 +87,7 @@ wash, white rounded cards and one-piece bottom dock of the reference app:
   The Memory screen can create, edit and delete notes.
 - **Internationalization**: every new UI string lives in resources, with Chinese in
   `app/src/main/res/values/strings.xml` and English in `values-en/strings.xml`; both files currently
-  hold 350 matching keys, and the app language can be switched in Settings.
+  hold 351 matching keys, and the app language can be switched in Settings.
 
 The roadmap toward a SuperAgent (task queue, checkpoints, layered memory, skill ecosystem and
 multi-agent execution) is in [docs/superagent-plan.md](docs/superagent-plan.md) (Chinese).

@@ -246,8 +246,6 @@ private fun MuseBanner(text: String, action: String, onClick: () -> Unit) {
 }
 
 private class NotificationPermission(val granted: Boolean, val request: () -> Unit)
-
-/** POST_NOTIFICATIONS on Android 13+: asked once automatically, then via the banner. */
 @Composable
 private fun rememberNotificationPermission(): NotificationPermission {
     if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) return NotificationPermission(true) {}
