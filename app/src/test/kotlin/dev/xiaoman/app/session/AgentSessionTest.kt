@@ -18,6 +18,8 @@ import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runTest
 import org.junit.Test
+import java.io.File
+import java.nio.file.Files
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertIs
@@ -35,6 +37,21 @@ class AgentSessionTest {
         runIds = RunIds(),
         stopSignal = MutableStopSignal(),
         trace = trace,
+    )
+
+    private fun queueFile(): File {
+        val dir = Files.createTempDirectory("xiaoman-session-queue").toFile()
+        dir.deleteOnExit()
+        return File(dir, "queue.json")
+    }
+
+    private fun TestScope.queuedSession(agent: Agent?, queue: TaskQueueStore, runIds: RunIds) = AgentSession(
+        scope = backgroundScope,
+        agent = { agent },
+        runIds = runIds,
+        stopSignal = MutableStopSignal(),
+        trace = trace,
+        queue = queue,
     )
 
     /** Answers like XiaomanAgent: asks once through the session, then finishes. */
@@ -101,5 +118,55 @@ class AgentSessionTest {
         first.join()
         assertEquals(null, s.approval.value)
         assertTrue(s.items.value.last() is ChatItem.Progress)
+    }
+
+    @Test fun `queue rejects tasks while no model is configured`() = runTest(UnconfinedTestDispatcher()) {
+        val queue = TaskQueueStore(queueFile())
+        val s = queuedSession(null, queue, RunIds())
+
+        assertIs<AgentSession.Submit.NotConfigured>(s.enqueueTask("查快递"))
+        assertTrue(queue.tasks.value.isEmpty())
+    }
+
+    @Test fun `queued tasks run one after another`() = runTest(UnconfinedTestDispatcher()) {
+        val queue = TaskQueueStore(queueFile())
+        val runIds = RunIds()
+        val goals = mutableListOf<String>()
+        val firstGate = CompletableDeferred<Unit>()
+        val agent = object : Agent {
+            override suspend fun handle(
+                userMessage: String,
+                listener: AgentListener,
+                stop: StopSignal,
+                images: List<ByteArray>,
+                taskId: String?,
+            ) = Unit
+
+            override suspend fun runPhoneTask(
+                goal: String,
+                skillName: String?,
+                listener: AgentListener,
+                stop: StopSignal,
+            ): AgentEvent.PhoneTaskFinished {
+                val id = runIds.next()
+                goals += goal
+                listener.onEvent(AgentEvent.PhoneTaskStarted(id, goal, skillName))
+                if (goals.size == 1) firstGate.await()
+                return AgentEvent.PhoneTaskFinished(id, true, "完成：$goal", 1)
+            }
+        }
+        val s = queuedSession(agent, queue, runIds)
+
+        assertIs<AgentSession.Submit.Queued>(s.enqueueTask("第一个"))
+        assertIs<AgentSession.Submit.Queued>(s.enqueueTask("第二个"))
+        assertEquals(1, queue.tasks.value.count { it.state == QueueState.RUNNING })
+        assertEquals(1, queue.tasks.value.count { it.state == QueueState.QUEUED })
+
+        firstGate.complete(Unit)
+        advanceUntilIdle()
+
+        assertEquals(listOf("第一个", "第二个"), goals)
+        assertTrue(queue.tasks.value.all { it.state == QueueState.DONE })
+        assertFalse(s.busy.value)
     }
 }

@@ -113,6 +113,7 @@ Agent 会按目标检索 `howto` 笔记，把命中结果放进操作提示词�
 |---|---|---|
 | 会话历史 | `app/session/ChatHistoryStore.kt` | `<external files>/chat/history.json`，默认 500 条，可在设置中调为 50–2000；原子写入；「清空会话」只删这个文件 |
 | 任务子对话 | `app/session/TaskThreadStore.kt` | `<external files>/chat/tasks.json`；每个手机任务一个线程，最多 100 个任务、每任务 200 条记录；任务详情可继续对话，主对话只保留 `ChatItem.TaskEntry` 卡片 |
+| 任务队列 | `app/session/TaskQueueStore.kt` | `<external files>/chat/queue.json`；QUEUED/RUNNING/PAUSED/DONE/FAILED/CANCELLED；最多 20 个未完成任务；重启时 RUNNING 转 FAILED 并记录原因 |
 | 小满日记 | `app/diary/DiaryStore.kt` | `<external files>/diary/diary.json`；任务完成/失败与记忆更新写入，最多 500 条，按天分页 |
 | 全局 Dock | `app/ui/ChatDock.kt` | 输入框 + 导航合并为一张近不透明卡片，外圈透明；所有页签共用草稿；附件、语音、发送/停止都在这张卡里 |
 | 能力页 | `app/ui/CapabilitiesScreen.kt` | 「技能 / 服务」分段切换；复用 `SkillsScreen` 与 `McpScreen`，隐藏重复标题 |
@@ -160,6 +161,13 @@ Agent 会按目标检索 `howto` 笔记，把命中结果放进操作提示词�
   写回该任务线程；其他事件（新手机任务）交给主监听器，继续创建新的任务线程与主对话任务卡。
   发送前会把任务目标、状态、摘要和最近 12 条记录拼进提示词，保证子对话有上下文。
 - 主对话只保留与小满的会话；任务会话统一从「任务」页或主对话任务卡进入。
+- 任务队列（SuperAgent 阶段 0）：`AgentSession.enqueueTask` 写入 `TaskQueueStore` 后调用私有
+  `drainQueue()`。整个进程只有一个执行槽（`AtomicBoolean running`），聊天回合与手机任务共用；
+  队列任务通过 `runIds.prime(id)` 让 trace、任务线程与队列行使用同一个 id。任务结束后在
+  `launch` 的 `finally` 中再次 `drainQueue()`，若成功取到下一条就不把 `busy` 置回 false，
+  避免前台服务在任务交接时闪烁。重启时 `TaskQueueStore` 在加载阶段把 RUNNING 改为 FAILED，
+  `AgentSession` 的 `init` 再把对应线程与主对话任务卡同步标记为未完成；`AppGraph.start` 在技能
+  与无障碍服务就绪后调用 `resumeQueue()` 继续 QUEUED 任务。
 - 附件链路：`ChatDock` 读图/拍照 → 最长边 1280px PNG → `AgentSession.submit(images)` →
   `Agent.handle(..., images)` → `ChatMessage.user(text, images)` → `ContentPart.ImagePng`。
   文本文件在客户端读取（≤20KB）后内联进消息；历史只保存 `ChatItem.User.imageCount`。

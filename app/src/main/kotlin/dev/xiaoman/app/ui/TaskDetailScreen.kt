@@ -21,6 +21,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
@@ -67,7 +68,7 @@ fun TaskDetailScreen(graph: AppGraph, taskId: String, onBack: () -> Unit) {
             )
             return@Column
         }
-        TaskSummary(thread)
+        TaskSummary(thread, onStop = if (thread.running) graph.session::stop else null)
         LazyColumn(
             modifier = Modifier.weight(1f).fillMaxWidth(),
             contentPadding = PaddingValues(start = 14.dp, end = 14.dp, top = 4.dp, bottom = DockSpace + 8.dp),
@@ -84,7 +85,7 @@ fun TaskDetailScreen(graph: AppGraph, taskId: String, onBack: () -> Unit) {
 }
 
 @Composable
-private fun TaskSummary(thread: TaskThread) {
+private fun TaskSummary(thread: TaskThread, onStop: (() -> Unit)? = null) {
     val status = when {
         thread.running -> stringResource(R.string.task_entry_running)
         thread.success == true -> stringResource(R.string.task_entry_done)
@@ -122,6 +123,11 @@ private fun TaskSummary(thread: TaskThread) {
                         maxLines = 4,
                         overflow = TextOverflow.Ellipsis,
                     )
+                }
+            }
+            if (onStop != null) {
+                TextButton(onClick = onStop) {
+                    Text(stringResource(R.string.chat_stop), color = MaterialTheme.colorScheme.error)
                 }
             }
         }

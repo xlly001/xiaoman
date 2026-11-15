@@ -196,6 +196,17 @@
     <string name="tasks_filter_running">进行中</string>
     <string name="tasks_filter_done">已完成</string>
     <string name="tasks_filter_failed">未完成</string>
+    <string name="queue_title">任务队列</string>
+    <string name="queue_new">新建任务</string>
+    <string name="queue_new_title">派一个新任务</string>
+    <string name="queue_new_hint">想让小满做什么？例如：查一下最近一票快递</string>
+    <string name="queue_add">加入队列</string>
+    <string name="queue_waiting">排队中</string>
+    <string name="queue_paused">已暂停</string>
+    <string name="queue_pause">暂停</string>
+    <string name="queue_resume">继续</string>
+    <string name="queue_full">队列已满，请先处理排队中的任务。</string>
+    <string name="queue_interrupted">应用重启，任务中断</string>
     <string name="quick_title">常用指令</string>
     <string name="quick_add">新建指令</string>
     <string name="quick_dialog_add_title">新建常用指令</string>

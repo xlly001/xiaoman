@@ -1,6 +1,6 @@
 # 小满 SuperAgent 功能开发计划
 
-> 状态：规划稿（v0.1）  
+> 状态：规划稿（v0.2，P0-1 任务队列已落地）  
 > 适用范围：Android 客户端 `f:\gowork\xllyxx\xiaoman`  
 > 关联文档：[架构说明](ARCHITECTURE.md)、[UI 交互](ui-interaction.md)、[Spec](../.trae/specs/xiaoman-ui/spec.md)
 
@@ -41,7 +41,7 @@
 | 能力 | 现有实现 | 差距 | 优先级 |
 |---|---|---|---|
 | 对话 | `XiaomanAgent.handle`，OpenAI 兼容，文本 + 图片输入 | 无流式输出；附件只有图片/文本文件；无语音对话 | P1 |
-| 任务执行 | `AgentSession.launch` 用 `AtomicBoolean` 保证一次一个任务 | 无队列、无暂停/恢复、无检查点、无重试策略 | P0 |
+| 任务执行 | `AgentSession.launch` 用 `AtomicBoolean` 保证一次一个任务；`TaskQueueStore` 提供持久化队列 | 已有入队、暂停/继续/取消、重启中断标记与 QUEUED 续跑；仍无运行中检查点、重试策略；聊天 `phone_task` 未解耦 | P0 |
 | 任务记录 | `TaskThreadStore` + `TaskThread`，主对话 `TaskEntry` 卡片 | 只有对话记录，没有状态机、预算、检查点 | P0 |
 | 事件轨迹 | `TraceWriter` 写 `trace.jsonl`、`audit.jsonl`、步骤截图 | 只用于调试，没有回放 UI、指标、评测 | P0 |
 | 记忆 | `FileMemoryStore` + `MemoryIndex` 倒排索引，Basic Memory Markdown | 无向量检索、无分层、无巩固/遗忘、无用户画像 | P1 |
@@ -448,11 +448,19 @@ interface Verifier {
 
 ### P0-1 任务队列与任务中心
 
-- 新增 `app/session/TaskQueue.kt`、`TaskRecord.kt`、`TaskRepository.kt`。
-- `AgentSession.launch` 改为从队列取任务；保留 `runPhoneTask` 兼容调试入口。
-- 任务状态写入 `chat/tasks.json` 或 SQLite；先做 JSON 迁移，后续再换 Room。
-- 新增 `ui/TaskCenterScreen.kt`，从聊天页任务卡与 Dock 进入。
-- 测试：排队顺序、暂停恢复、取消、并发提交。
+> 状态（2026-11-15）：**已完成第一版**。实现落在 `app/session/TaskQueueStore.kt`（合并了原计划的
+> `TaskQueue`/`TaskRecord`/`TaskRepository`），队列文件为 `chat/queue.json`，UI 复用「任务」页而不是
+> 新开 `TaskCenterScreen`。剩余：SQLite/Room 迁移、任务级预算与重试、聊天 `phone_task` 解耦。
+
+- 新增 `app/session/TaskQueue.kt`、`TaskRecord.kt`、`TaskRepository.kt`。→ 实际为 `TaskQueueStore.kt`。
+- `AgentSession.launch` 改为从队列取任务；保留 `runPhoneTask` 兼容调试入口。→ 已完成；任务结束在
+  `finally` 中自动出队，`busy` 在交接时不回落，前台服务不闪烁。
+- 任务状态写入 `chat/tasks.json` 或 SQLite；先做 JSON 迁移，后续再换 Room。→ 队列单独写
+  `chat/queue.json`；JSON 原子写入，最多 20 个未完成任务。
+- 新增 `ui/TaskCenterScreen.kt`，从聊天页任务卡与 Dock 进入。→ 已并入 `TaskHistoryScreen`：右上角
+  「新建任务」+ 筛选条下方队列区，支持暂停/继续/取消；运行中任务在详情页停止。
+- 测试：排队顺序、暂停恢复、取消、并发提交。→ `TaskQueueStoreTest` 8 项 + `AgentSessionTest`
+  2 项（未配置拒绝、串行执行）。
 
 ### P0-2 检查点与恢复
 

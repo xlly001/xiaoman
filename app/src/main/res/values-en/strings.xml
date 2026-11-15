@@ -196,6 +196,17 @@
     <string name="tasks_filter_running">Running</string>
     <string name="tasks_filter_done">Done</string>
     <string name="tasks_filter_failed">Failed</string>
+    <string name="queue_title">Task queue</string>
+    <string name="queue_new">New task</string>
+    <string name="queue_new_title">Give Xiaoman a task</string>
+    <string name="queue_new_hint">What should Xiaoman do? For example: track my latest parcel</string>
+    <string name="queue_add">Add to queue</string>
+    <string name="queue_waiting">Queued</string>
+    <string name="queue_paused">Paused</string>
+    <string name="queue_pause">Pause</string>
+    <string name="queue_resume">Resume</string>
+    <string name="queue_full">The queue is full. Finish or cancel a waiting task first.</string>
+    <string name="queue_interrupted">The app restarted, so the task was interrupted</string>
     <string name="quick_title">Shortcuts</string>
     <string name="quick_add">New shortcut</string>
     <string name="quick_dialog_add_title">New shortcut</string>

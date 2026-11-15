@@ -13,6 +13,7 @@ import dev.xiaoman.app.session.AgentSession
 import dev.xiaoman.app.session.AndroidStepText
 import dev.xiaoman.app.session.ChatHistoryStore
 import dev.xiaoman.app.session.SessionTexts
+import dev.xiaoman.app.session.TaskQueueStore
 import dev.xiaoman.app.session.TaskThreadStore
 import dev.xiaoman.app.settings.AppSettings
 import dev.xiaoman.app.settings.ModelSettings
@@ -94,6 +95,14 @@ class AppGraph(context: Context, private val llm: LlmClientFactory = LlmClients.
     /** Phone tasks as their own conversations, linked from the main chat. */
     val taskThreads by lazy { TaskThreadStore(File(chatDir, "tasks.json")) }
 
+    /** Phone tasks dispatched from the task center, waiting for the single execution slot. */
+    val taskQueue by lazy {
+        TaskQueueStore(
+            File(chatDir, "queue.json"),
+            interruptedNote = app.getString(R.string.queue_interrupted),
+        )
+    }
+
     val quickCommands by lazy {
         QuickCommandStore(File(chatDir, "quick-commands.json"), defaultQuickCommands())
     }
@@ -168,10 +177,12 @@ class AppGraph(context: Context, private val llm: LlmClientFactory = LlmClients.
                 approvedTask = { app.getString(R.string.approval_resolved_task, it) },
                 denied = { app.getString(R.string.approval_resolved_denied, it) },
                 approvalPending = { app.getString(R.string.status_approval_pending, it) },
+                interrupted = app.getString(R.string.queue_interrupted),
             ),
             ready = { startup.await() },
             history = chatHistory,
             taskThreads = taskThreads,
+            queue = taskQueue,
             historyLimit = { settings.current.chatHistoryLimit },
             stepText = AndroidStepText(app),
         )
@@ -261,6 +272,15 @@ class AppGraph(context: Context, private val llm: LlmClientFactory = LlmClients.
         OverlayController(session, accessibilityDevice, uiVisible = uiVisible, fallbackTitle = app.getString(R.string.app_name)).start(scope)
         scope.launch(Dispatchers.Main.immediate) {
             session.busy.collect { busy -> if (busy) AgentService.start(app) }
+        }
+        // Tasks still queued from last time continue once skills and the accessibility bridge are
+        // ready; without the bridge the operator loop would fail on its first observation.
+        scope.launch {
+            val deadline = System.currentTimeMillis() + 5_000
+            while (XiaomanAccessibilityService.instance.value == null && System.currentTimeMillis() < deadline) {
+                kotlinx.coroutines.delay(200)
+            }
+            session.resumeQueue()
         }
         scope.launch(Dispatchers.Main.immediate) { session.approval.collect(notifier::showApproval) }
         scope.launch(Dispatchers.Main.immediate) { session.question.collect(notifier::showQuestion) }

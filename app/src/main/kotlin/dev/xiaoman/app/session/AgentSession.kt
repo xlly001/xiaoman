@@ -34,6 +34,7 @@ data class SessionTexts(
     val notConfigured: String = "还没有配置模型。",
     val busy: String = "已有任务在运行。",
     val stopped: String = "已停止",
+    val interrupted: String = "应用重启，任务中断",
     val approvedOnce: (String) -> String = { "已允许：$it" },
     val approvedTask: (String) -> String = { "本次任务都允许：$it" },
     val denied: (String) -> String = { "已拒绝：$it" },
@@ -71,6 +72,8 @@ class AgentSession(
     private val history: ChatHistoryStore? = null,
     /** Phone tasks are kept as their own sub-conversations instead of flooding the main chat. */
     private val taskThreads: TaskThreadStore? = null,
+    /** Phone tasks dispatched from the task center wait here for the single execution slot. */
+    private val queue: TaskQueueStore? = null,
     /** Dynamic history cap from Settings; read on each append. */
     private val historyLimit: () -> Int = { MAX_ITEMS },
     /** Localized event text; the default Chinese object keeps JVM tests and the web server unchanged. */
@@ -110,6 +113,29 @@ class AgentSession(
 
     /** Main-chat TaskEntry id for each task thread, so completion can update the same card. */
     private val taskEntryIds = java.util.concurrent.ConcurrentHashMap<String, Long>()
+
+    init {
+        // A RUNNING queue row means the process died mid-task. Mark its thread and main-chat card
+        // as failed instead of leaving them "进行中" forever.
+        val interrupted = queue?.interruptedIds.orEmpty().toSet()
+        if (interrupted.isNotEmpty()) {
+            interrupted.forEach { id ->
+                taskThreads?.get(id)?.let { thread ->
+                    taskThreads.finish(id, success = false, summary = texts.interrupted, steps = thread.steps)
+                }
+            }
+            _items.update { list ->
+                list.map { item ->
+                    if (item is ChatItem.TaskEntry && item.taskId in interrupted) {
+                        item.copy(running = false, success = false, summary = texts.interrupted)
+                    } else {
+                        item
+                    }
+                }
+            }
+            persist()
+        }
+    }
 
     /** Trace first, then the UI. */
     val listener = AgentListener { event ->
@@ -174,6 +200,12 @@ class AgentSession(
         data object Busy : Submit()
         data object NotConfigured : Submit()
         data object Empty : Submit()
+
+        /** The queue refuses more tasks until the waiting ones are handled. */
+        data object QueueFull : Submit()
+
+        /** Accepted into the task queue; it may run now or after the current task. */
+        data class Queued(val id: String) : Submit()
     }
 
     /** Chat input: answers a pending question, else starts a chat turn. [images] are PNG bytes. */
@@ -289,6 +321,55 @@ class AgentSession(
         return started
     }
 
+    /**
+     * Adds a phone task to the queue and starts it when the single execution slot is free.
+     * Tasks queued behind a running one start as soon as it finishes; Stop only ends the current task.
+     */
+    fun enqueueTask(goal: String, skill: String? = null): Submit {
+        val message = goal.trim()
+        if (message.isEmpty()) return Submit.Empty
+        val store = queue ?: return Submit.Empty
+        if (agent() == null) return Submit.NotConfigured
+        val record = store.enqueue(runIds.generate(), message, skill) ?: return Submit.QueueFull
+        drainQueue()
+        return Submit.Queued(record.id)
+    }
+
+    /** Picks up tasks that were still queued when the app last closed. */
+    fun resumeQueue() {
+        if (queue?.tasks?.value.isNullOrEmpty()) return
+        drainQueue()
+    }
+
+    /** Pulls the next queued task while the slot is free; true when a task took the slot. */
+    private fun drainQueue(): Boolean {
+        val store = queue ?: return false
+        while (true) {
+            if (running.get()) return false
+            val next = store.next() ?: return false
+            val agent = agent()
+            if (agent == null) {
+                store.finish(next.id, success = false, note = texts.notConfigured)
+                continue
+            }
+            val started = launch(next.id) {
+                runIds.prime(next.id)
+                try {
+                    val finished = agent.runPhoneTask(next.goal, next.skill, listener, stopSignal)
+                    store.finish(next.id, finished.success, finished.summary)
+                } catch (e: CancellationException) {
+                    store.finish(next.id, success = false, note = texts.stopped)
+                    throw e
+                } catch (e: Exception) {
+                    store.finish(next.id, success = false, note = e.message?.takeIf { it.isNotBlank() } ?: texts.stopped)
+                    throw e
+                }
+            }
+            if (!started) store.requeue(next.id)
+            return started
+        }
+    }
+
     /** Emits Failed + PhoneTaskFinished for a run that cannot (or could not) complete. */
     fun fail(runId: String, message: String) {
         listener.onEvent(AgentEvent.Failed(runId, message))
@@ -370,7 +451,9 @@ class AgentSession(
                     _approval.value = null
                     _status.value = null
                     running.set(false)
-                    _busy.value = false
+                    // A finished turn may hand the slot straight to the next queued task, so the
+                    // busy flag never drops and the foreground service does not flicker.
+                    if (!drainQueue()) _busy.value = false
                 }
             }
         }

@@ -79,6 +79,11 @@ wash, white rounded cards and one-piece bottom dock of the reference app:
   guidance.
 - **Capabilities page**: Skills and Services now share one page with a segmented switch. Skills keeps search, create, edit and delete; Services keeps MCP selection, keys, testing and custom servers.
 - **Task history**: the Tasks tab lists every past task newest first, with All/Running/Done/Failed filters; tapping a card opens its detail.
+- **Task queue**: “New task” at the top of the Tasks tab queues a goal. One task runs at a time; when it
+  finishes the next one starts automatically (higher priority first, then first in, first out). Queued
+  rows can be paused, resumed or cancelled, and a running task can be stopped from its detail page. The
+  queue lives in `chat/queue.json` and survives a restart; a task that was running when the process died
+  is marked “interrupted by app restart”.
 - **Settings entry**: the gear at the top-left of the chat opens Settings. It covers theme (system/light/
   dark), language (system/Simplified Chinese/English), automatic voice send, notification toggle,
   request timeout, conversation cap, accessibility, clear conversation/traces and version information.
@@ -87,7 +92,7 @@ wash, white rounded cards and one-piece bottom dock of the reference app:
   The Memory screen can create, edit and delete notes.
 - **Internationalization**: every new UI string lives in resources, with Chinese in
   `app/src/main/res/values/strings.xml` and English in `values-en/strings.xml`; both files currently
-  hold 351 matching keys, and the app language can be switched in Settings.
+  hold 362 matching keys, and the app language can be switched in Settings.
 
 The roadmap toward a SuperAgent (task queue, checkpoints, layered memory, skill ecosystem and
 multi-agent execution) is in [docs/superagent-plan.md](docs/superagent-plan.md) (Chinese).
@@ -132,6 +137,7 @@ Secondary development adds these plain JSON files:
 
 - conversation history: `/sdcard/Android/data/dev.xiaoman.app/files/chat/history.json`
 - task threads: `/sdcard/Android/data/dev.xiaoman.app/files/chat/tasks.json`
+- task queue: `/sdcard/Android/data/dev.xiaoman.app/files/chat/queue.json`
 - Xiaoman diary: `/sdcard/Android/data/dev.xiaoman.app/files/diary/diary.json`
 - quick commands: `/sdcard/Android/data/dev.xiaoman.app/files/chat/quick-commands.json`
 
