@@ -112,8 +112,8 @@ Agent 会按目标检索 `howto` 笔记，把命中结果放进操作提示词�
 | 内容 | 文件 | 手机位置 / 说明 |
 |---|---|---|
 | 会话历史 | `app/session/ChatHistoryStore.kt` | `<external files>/chat/history.json`，默认 500 条，可在设置中调为 50–2000；原子写入；「清空会话」只删这个文件 |
-| 任务子对话 | `app/session/TaskThreadStore.kt` | `<external files>/chat/tasks.json`；每个手机任务一个线程，最多 100 个任务、每任务 200 条记录；任务详情可继续对话，主对话只保留 `ChatItem.TaskEntry` 卡片 |
-| 任务队列 | `app/session/TaskQueueStore.kt` | `<external files>/chat/queue.json`；QUEUED/RUNNING/PAUSED/DONE/FAILED/CANCELLED；最多 20 个未完成任务；重启时 RUNNING 转 FAILED 并记录原因 |
+| 任务子对话 | `app/session/TaskThreadStore.kt` | `<external files>/chat/tasks.json`；每个手机任务一个线程，最多 100 个任务、每任务 200 条记录；任务详情可继续对话，主对话只保留 `ChatItem.TaskEntry` 卡片；每步写入 `TaskCheckpoint`（步数 + 最近 12 条） |
+| 任务队列 | `app/session/TaskQueueStore.kt` | `<external files>/chat/queue.json`；QUEUED/RUNNING/PAUSED/DONE/FAILED/CANCELLED；最多 20 个未完成任务；重启时 RUNNING 回 QUEUED 并标记 resumed，由会话决定续跑或失败 |
 | 小满日记 | `app/diary/DiaryStore.kt` | `<external files>/diary/diary.json`；任务完成/失败与记忆更新写入，最多 500 条，按天分页 |
 | 全局 Dock | `app/ui/ChatDock.kt` | 输入框 + 导航合并为一张近不透明卡片，外圈透明；所有页签共用草稿；附件、语音、发送/停止都在这张卡里 |
 | 能力页 | `app/ui/CapabilitiesScreen.kt` | 「技能 / 服务」分段切换；复用 `SkillsScreen` 与 `McpScreen`，隐藏重复标题 |
@@ -165,9 +165,16 @@ Agent 会按目标检索 `howto` 笔记，把命中结果放进操作提示词�
   `drainQueue()`。整个进程只有一个执行槽（`AtomicBoolean running`），聊天回合与手机任务共用；
   队列任务通过 `runIds.prime(id)` 让 trace、任务线程与队列行使用同一个 id。任务结束后在
   `launch` 的 `finally` 中再次 `drainQueue()`，若成功取到下一条就不把 `busy` 置回 false，
-  避免前台服务在任务交接时闪烁。重启时 `TaskQueueStore` 在加载阶段把 RUNNING 改为 FAILED，
-  `AgentSession` 的 `init` 再把对应线程与主对话任务卡同步标记为未完成；`AppGraph.start` 在技能
-  与无障碍服务就绪后调用 `resumeQueue()` 继续 QUEUED 任务。
+  避免前台服务在任务交接时闪烁。
+- 检查点与恢复（P0-2）：监听器在 `StepExecuted`/`StepBlocked` 时调用
+  `TaskThreadStore.checkpoint`，把已完成步数与该步的中文描述写进 `TaskThread.checkpoint`
+  （只留最近 12 条，作为模型上下文，不受界面语言影响）。重启时 `TaskQueueStore` 把 RUNNING 行
+  改回 QUEUED 并置 `resumed`；`AgentSession.init` 对每个中断任务查线程检查点：有检查点的保留，
+  没有的把队列行、线程和主对话任务卡一起标记为失败。执行时 `drainQueue` 用检查点构造
+  `TaskResume(steps, history)`，`OperatorLoop` 把它作为初始历史、从 `steps` 继续计数，并在首轮
+  提示词加入「应用重启后的恢复」段落；步数预算按 `maxSteps - steps` 收窄。含非空 `flow.yaml`
+  的技能不做恢复，直接失败，避免重放已生效的动作。`AppGraph.start` 在技能与无障碍服务就绪后
+  调用 `resumeQueue()` 继续 QUEUED 任务；模型未配置时保持排队。
 - 附件链路：`ChatDock` 读图/拍照 → 最长边 1280px PNG → `AgentSession.submit(images)` →
   `Agent.handle(..., images)` → `ChatMessage.user(text, images)` → `ContentPart.ImagePng`。
   文本文件在客户端读取（≤20KB）后内联进消息；历史只保存 `ChatItem.User.imageCount`。

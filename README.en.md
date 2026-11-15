@@ -82,8 +82,12 @@ wash, white rounded cards and one-piece bottom dock of the reference app:
 - **Task queue**: “New task” at the top of the Tasks tab queues a goal. One task runs at a time; when it
   finishes the next one starts automatically (higher priority first, then first in, first out). Queued
   rows can be paused, resumed or cancelled, and a running task can be stopped from its detail page. The
-  queue lives in `chat/queue.json` and survives a restart; a task that was running when the process died
-  is marked “interrupted by app restart”.
+  queue lives in `chat/queue.json` and survives a restart.
+- **Checkpoint recovery**: every executed step writes a checkpoint (completed steps plus the last 12 step
+  lines). After the process is killed, a queued task with a checkpoint continues from step N: the
+  operator looks at the current screen again before choosing the next action. Tasks without a checkpoint
+  are marked “interrupted by app restart”. Skill flows (`flow.yaml`) are not resumed yet and fail with a
+  clear reason instead of replaying actions that may already have taken effect.
 - **Settings entry**: the gear at the top-left of the chat opens Settings. It covers theme (system/light/
   dark), language (system/Simplified Chinese/English), automatic voice send, notification toggle,
   request timeout, conversation cap, accessibility, clear conversation/traces and version information.
@@ -92,7 +96,7 @@ wash, white rounded cards and one-piece bottom dock of the reference app:
   The Memory screen can create, edit and delete notes.
 - **Internationalization**: every new UI string lives in resources, with Chinese in
   `app/src/main/res/values/strings.xml` and English in `values-en/strings.xml`; both files currently
-  hold 362 matching keys, and the app language can be switched in Settings.
+  hold 364 matching keys, and the app language can be switched in Settings.
 
 The roadmap toward a SuperAgent (task queue, checkpoints, layered memory, skill ecosystem and
 multi-agent execution) is in [docs/superagent-plan.md](docs/superagent-plan.md) (Chinese).

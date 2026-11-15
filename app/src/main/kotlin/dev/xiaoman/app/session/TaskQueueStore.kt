@@ -37,6 +37,8 @@ data class QueuedTask(
     val updatedAt: Long = createdAt,
     /** Failure reason or short result, shown in the task center. */
     val note: String = "",
+    /** True when the app restarted mid-task and the checkpoint should continue it. */
+    val resumed: Boolean = false,
 ) {
     /** Still waiting for or holding the execution slot. */
     val active: Boolean
@@ -50,14 +52,14 @@ private data class QueueFile(val version: Int = 1, val tasks: List<QueuedTask> =
  * Persists the phone-task queue under [file]. The session owns the single execution slot; this
  * class only tracks order and state, so it stays testable on the JVM.
  *
- * A `RUNNING` row can only exist while the process is alive. On load those rows become
- * [QueueState.FAILED] with [interruptedNote], because there is no checkpoint to resume from yet.
+ * A `RUNNING` row can only exist while the process is alive. On load those rows go back to
+ * [QueueState.QUEUED] with [QueuedTask.resumed] set; the session decides whether the task's
+ * checkpoint is good enough to continue, or marks it failed.
  */
 class TaskQueueStore(
     private val file: File,
     private val maxActive: Int = 20,
     private val maxRecords: Int = 120,
-    private val interruptedNote: String = "",
 ) {
     private val json = Json {
         ignoreUnknownKeys = true
@@ -191,7 +193,8 @@ class TaskQueueStore(
         val interrupted = tasks.filter { it.state == QueueState.RUNNING }.map { it.id }
         val settled = tasks.map {
             if (it.state == QueueState.RUNNING) {
-                it.copy(state = QueueState.FAILED, note = interruptedNote, updatedAt = System.currentTimeMillis())
+                // Back to the queue; the session keeps it only when a checkpoint exists.
+                it.copy(state = QueueState.QUEUED, resumed = true, note = "", updatedAt = System.currentTimeMillis())
             } else {
                 it
             }

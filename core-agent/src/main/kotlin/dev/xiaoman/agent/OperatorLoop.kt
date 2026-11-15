@@ -16,6 +16,7 @@ import dev.xiaoman.api.LlmClient
 import dev.xiaoman.api.LlmException
 import dev.xiaoman.api.ScreenState
 import dev.xiaoman.api.Sentinel
+import dev.xiaoman.api.TaskResume
 import dev.xiaoman.api.UserChannel
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.delay
@@ -41,7 +42,9 @@ internal class OperatorLoop(
         constraint: StepConstraint? = null,
         maxSteps: Int = config.maxSteps,
     ): LoopOutcome {
-        val history = mutableListOf<String>()
+        // A resumed task starts with the steps that already succeeded before the app restarted.
+        val resume = task.takeResume()
+        val history = resume?.history.orEmpty().toMutableList()
         val feedback = mutableListOf<String>()
         var parseFailures = 0
         var actedOn: String? = null // fingerprint of the screen the last action ran on
@@ -49,7 +52,9 @@ internal class OperatorLoop(
         var sameAfterActing = 0
         var warnedStuck = false
 
-        for (iteration in 0 until maxSteps) {
+        // A resumed task has already spent part of its step budget.
+        val budget = if (resume != null) (maxSteps - task.steps).coerceAtLeast(1) else maxSteps
+        for (iteration in 0 until budget) {
             if (task.stop.stopped) return LoopOutcome(false, Prompts.STOPPED)
             val screen = device.observe()
             screen.packageName?.let { task.lastPackage = it }
@@ -74,7 +79,15 @@ internal class OperatorLoop(
                 feedback += Prompts.STUCK_WARNING
             }
 
-            val request = operatorRequest(task, subGoal, constraint, screen, history, feedback)
+            val request = operatorRequest(
+                task,
+                subGoal,
+                constraint,
+                screen,
+                history,
+                feedback,
+                resume.takeIf { iteration == 0 },
+            )
             val reply = try {
                 completeWithRetry(request)
             } catch (e: LlmException) {
@@ -244,12 +257,14 @@ internal class OperatorLoop(
         screen: ScreenState,
         history: List<String>,
         feedback: List<String>,
+        resume: TaskResume? = null,
     ): ChatRequest {
         val sections = buildList {
             add(if (subGoal != null) Prompts.subGoalSection(subGoal, task.goal) else Prompts.goalSection(task.goal))
             task.skill?.let { s -> s.instructions.takeIf { it.isNotBlank() }?.let { add(Prompts.skillSection(s.name, it)) } }
             if (task.references.isNotBlank()) add(Prompts.MEMORY_REFS_HEADER + "\n" + task.references)
             if (task.howto.isNotBlank()) add(Prompts.HOWTO_HEADER + "\n" + task.howto)
+            resume?.let { add(Prompts.resumeSection(it.steps, it.history.takeLast(config.historyWindow))) }
             if (history.isNotEmpty()) add(Prompts.HISTORY_HEADER + "\n" + history.takeLast(config.historyWindow).joinToString("\n"))
             if (feedback.isNotEmpty()) add(Prompts.FEEDBACK_HEADER + "\n" + feedback.joinToString("\n"))
             constraint?.let { add(Prompts.singleStep(it.kind, it.target, it.text)) }

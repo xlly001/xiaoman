@@ -22,6 +22,7 @@ import dev.xiaoman.api.Skill
 import dev.xiaoman.api.SkillChannel
 import dev.xiaoman.api.SkillRepository
 import dev.xiaoman.api.StopSignal
+import dev.xiaoman.api.TaskResume
 import dev.xiaoman.api.UserChannel
 import dev.xiaoman.api.UserSkillStore
 import kotlinx.coroutines.CancellationException
@@ -105,7 +106,13 @@ class XiaomanAgent(
         }
     }
 
-    override suspend fun runPhoneTask(goal: String, skillName: String?, listener: AgentListener, stop: StopSignal): AgentEvent.PhoneTaskFinished {
+    override suspend fun runPhoneTask(
+        goal: String,
+        skillName: String?,
+        listener: AgentListener,
+        stop: StopSignal,
+        resume: TaskResume?,
+    ): AgentEvent.PhoneTaskFinished {
         val taskId = idFactory()
         fun finish(success: Boolean, summary: String, steps: Int) =
             AgentEvent.PhoneTaskFinished(taskId, success, summary, steps).also(listener::onEvent)
@@ -117,11 +124,16 @@ class XiaomanAgent(
         listener.onEvent(AgentEvent.PhoneTaskStarted(taskId, goal, skill?.name))
         if (wanted != null && skill == null) return finish(false, "${Prompts.SKILL_NOT_FOUND}：$wanted", 0)
 
-        val task = TaskRun(taskId, goal, skill, listener, stop)
+        // Flows replay their own steps; resuming inside a flow is not supported yet. Failing is
+        // safer than silently replaying actions that may already have taken effect.
+        val flow = skill?.flow
+        if (resume != null && flow != null && flow.steps.isNotEmpty()) {
+            return finish(false, Prompts.RESUME_FLOW_UNSUPPORTED, resume.steps)
+        }
+        val task = TaskRun(taskId, goal, skill, listener, stop, resume)
         val outcome = try {
             task.references = references(skill)
             task.howto = howto(goal, skill)
-            val flow = skill?.flow
             if (flow != null && flow.steps.isNotEmpty()) flows.run(task, flow) else loop.run(task)
         } catch (e: CancellationException) {
             throw e
@@ -135,7 +147,8 @@ class XiaomanAgent(
             listener.onEvent(AgentEvent.Failed(taskId, message))
             LoopOutcome(false, message)
         }
-        if (outcome.success && config.learnFromSuccess) quietly(Unit) { learn(task) }
+        // A resumed run only knows the tail of its path, so do not overwrite the learned how-to.
+        if (outcome.success && config.learnFromSuccess && resume == null) quietly(Unit) { learn(task) }
         return finish(outcome.success, outcome.summary, task.steps)
     }
 

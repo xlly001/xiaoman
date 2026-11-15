@@ -11,6 +11,14 @@ import java.io.FileOutputStream
 import java.nio.file.Files
 import java.nio.file.StandardCopyOption
 
+/** What the operator needs to continue a task after the app process was restarted. */
+@Serializable
+data class TaskCheckpoint(
+    val steps: Int,
+    val history: List<String> = emptyList(),
+    val savedAt: Long,
+)
+
 /** One phone task as its own conversation: goal, step log, and final result. */
 @Serializable
 data class TaskThread(
@@ -22,6 +30,8 @@ data class TaskThread(
     val summary: String = "",
     val steps: Int = 0,
     val items: List<ChatItem> = emptyList(),
+    /** Last completed steps, so a queued task can continue after a restart. */
+    val checkpoint: TaskCheckpoint? = null,
 ) {
     val running: Boolean get() = finishedAt == null
 }
@@ -64,6 +74,34 @@ class TaskThreadStore(
         val thread = current[index]
         val items = (thread.items + item).takeLast(maxItemsPerThread)
         commit(current.toMutableList().also { it[index] = thread.copy(items = items) })
+    }
+
+    /**
+     * Records one step for crash recovery. [steps] is the number of device actions already done;
+     * [line] is appended to a short history the operator sees after a restart.
+     */
+    @Synchronized
+    fun checkpoint(
+        taskId: String,
+        steps: Int,
+        line: String,
+        maxHistory: Int = 12,
+        at: Long = System.currentTimeMillis(),
+    ) {
+        val current = _threads.value
+        val index = current.indexOfFirst { it.id == taskId }
+        if (index < 0) return
+        val thread = current[index]
+        val before = thread.checkpoint
+        val history = (before?.history.orEmpty() + line)
+            .filter { it.isNotBlank() }
+            .takeLast(maxHistory)
+        val checkpoint = TaskCheckpoint(
+            steps = maxOf(steps, before?.steps ?: 0),
+            history = history,
+            savedAt = at,
+        )
+        commit(current.toMutableList().also { it[index] = thread.copy(checkpoint = checkpoint) })
     }
 
     @Synchronized

@@ -60,6 +60,17 @@ interface StopSignal {
     val stopped: Boolean
 }
 
+/**
+ * Context for continuing a phone task after the app process was restarted. The operator observes
+ * the current screen again, so this is a hint about what already happened, not a screen snapshot.
+ */
+data class TaskResume(
+    /** Device actions that already succeeded before the restart; the next step keeps numbering. */
+    val steps: Int,
+    /** Recent step lines, oldest first, for the operator prompt. */
+    val history: List<String> = emptyList(),
+)
+
 interface Agent {
     /** Handles one chat turn: replies, memory tools, or a phone task. Suspends until the turn is done. */
     suspend fun handle(
@@ -71,6 +82,15 @@ interface Agent {
         taskId: String? = null,
     )
 
-    /** Runs one phone task directly (used by the developer CLI and skill tests). */
-    suspend fun runPhoneTask(goal: String, skillName: String?, listener: AgentListener, stop: StopSignal): AgentEvent.PhoneTaskFinished
+    /**
+     * Runs one phone task directly (used by the developer CLI, skill tests and the task queue).
+     * [resume] continues an interrupted task; its step count and recent history seed the operator.
+     */
+    suspend fun runPhoneTask(
+        goal: String,
+        skillName: String?,
+        listener: AgentListener,
+        stop: StopSignal,
+        resume: TaskResume? = null,
+    ): AgentEvent.PhoneTaskFinished
 }

@@ -207,6 +207,8 @@
     <string name="queue_resume">Resume</string>
     <string name="queue_full">The queue is full. Finish or cancel a waiting task first.</string>
     <string name="queue_interrupted">The app restarted, so the task was interrupted</string>
+    <string name="queue_resumed">Resuming after restart</string>
+    <string name="task_resumed">Resuming after the app restart from step %1$d</string>
     <string name="quick_title">Shortcuts</string>
     <string name="quick_add">New shortcut</string>
     <string name="quick_dialog_add_title">New shortcut</string>

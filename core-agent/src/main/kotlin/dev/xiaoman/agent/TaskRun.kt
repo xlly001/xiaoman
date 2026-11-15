@@ -6,6 +6,7 @@ import dev.xiaoman.api.AgentListener
 import dev.xiaoman.api.Decision
 import dev.xiaoman.api.Skill
 import dev.xiaoman.api.StopSignal
+import dev.xiaoman.api.TaskResume
 
 /** State of one phone task, shared by its flow steps and every operator loop they run. */
 internal class TaskRun(
@@ -14,9 +15,12 @@ internal class TaskRun(
     val skill: Skill?,
     val listener: AgentListener,
     val stop: StopSignal,
+    resume: TaskResume? = null,
 ) {
     /** Device actions executed so far; also the step index of the next one. */
-    var steps = 0
+    var steps = resume?.steps ?: 0
+    /** Seed for the first operator loop; consumed once so nested loops do not repeat it. */
+    private var pendingResume: TaskResume? = resume
     /** Labels of the successful actions, for the learning note. */
     val path = mutableListOf<String>()
     /** Skill memory refs, rendered for prompts. */
@@ -34,6 +38,8 @@ internal class TaskRun(
         val l = label?.trim()?.takeIf { it.isNotEmpty() } ?: return
         if (path.lastOrNull() != l) path += l
     }
+
+    fun takeResume(): TaskResume? = pendingResume.also { pendingResume = null }
 }
 
 internal data class LoopOutcome(val success: Boolean, val summary: String)

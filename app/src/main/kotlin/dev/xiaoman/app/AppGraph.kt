@@ -96,12 +96,7 @@ class AppGraph(context: Context, private val llm: LlmClientFactory = LlmClients.
     val taskThreads by lazy { TaskThreadStore(File(chatDir, "tasks.json")) }
 
     /** Phone tasks dispatched from the task center, waiting for the single execution slot. */
-    val taskQueue by lazy {
-        TaskQueueStore(
-            File(chatDir, "queue.json"),
-            interruptedNote = app.getString(R.string.queue_interrupted),
-        )
-    }
+    val taskQueue by lazy { TaskQueueStore(File(chatDir, "queue.json")) }
 
     val quickCommands by lazy {
         QuickCommandStore(File(chatDir, "quick-commands.json"), defaultQuickCommands())
@@ -178,6 +173,7 @@ class AppGraph(context: Context, private val llm: LlmClientFactory = LlmClients.
                 denied = { app.getString(R.string.approval_resolved_denied, it) },
                 approvalPending = { app.getString(R.string.status_approval_pending, it) },
                 interrupted = app.getString(R.string.queue_interrupted),
+                resumed = { app.getString(R.string.task_resumed, it) },
             ),
             ready = { startup.await() },
             history = chatHistory,

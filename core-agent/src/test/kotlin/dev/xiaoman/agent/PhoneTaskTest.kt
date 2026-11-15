@@ -11,6 +11,7 @@ import dev.xiaoman.api.Flow
 import dev.xiaoman.api.FlowStep
 import dev.xiaoman.api.Note
 import dev.xiaoman.api.Observation
+import dev.xiaoman.api.TaskResume
 import dev.xiaoman.api.ToolCall
 import kotlinx.coroutines.test.runTest
 import kotlin.test.Test
@@ -307,5 +308,40 @@ class PhoneTaskTest {
         assertTrue("还在首页" in r.summary)
         assertEquals(listOf<Action>(Action.TypeText("西单", nodeId = 0)), h.device.performed)
         assertEquals(listOf(Prompts.askValue("destination") to false), h.users.asked)
+    }
+
+    @Test
+    fun resumedFlowTaskFailsInsteadOfReplaying() = runTest {
+        val flow = Flow(listOf(FlowStep.Type("目的地", "{destination}")))
+        val h = Harness(device = FakeDevice(settings), skills = FakeSkills(skill("t", flow = flow)), users = FakeUsers("西单"))
+
+        val r = h.agent.runPhoneTask("去西单", "t", h.events, h.stop, TaskResume(3, listOf("1. 点击 出发：成功")))
+
+        assertFalse(r.success)
+        assertEquals(Prompts.RESUME_FLOW_UNSUPPORTED, r.summary)
+        assertEquals(3, r.steps)
+        assertTrue(h.device.performed.isEmpty())
+    }
+
+    @Test
+    fun resumedTaskStartsWithSavedStepsAndHistory() = runTest {
+        val h = Harness(device = FakeDevice(settings))
+        h.operator.reply(op("""{"type": "finish", "success": true, "summary": "ok"}"""))
+
+        val r = h.agent.runPhoneTask(
+            "打开 WLAN",
+            null,
+            h.events,
+            h.stop,
+            TaskResume(steps = 2, history = listOf("1. 点击 设置：成功", "2. 点击 WLAN：成功")),
+        )
+
+        assertTrue(r.success)
+        assertEquals(2, r.steps)
+        val prompt = h.operator.requests.single().messages.last().text
+        assertTrue("应用重启后的恢复" in prompt)
+        assertTrue("已经执行了 2 步" in prompt)
+        assertTrue("1. 点击 设置：成功" in prompt)
+        assertTrue("2. 点击 WLAN：成功" in prompt)
     }
 }

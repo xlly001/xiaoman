@@ -1,6 +1,6 @@
 # 小满 SuperAgent 功能开发计划
 
-> 状态：规划稿（v0.2，P0-1 任务队列已落地）  
+> 状态：规划稿（v0.3，P0-1 任务队列与 P0-2 检查点已落地）  
 > 适用范围：Android 客户端 `f:\gowork\xllyxx\xiaoman`  
 > 关联文档：[架构说明](ARCHITECTURE.md)、[UI 交互](ui-interaction.md)、[Spec](../.trae/specs/xiaoman-ui/spec.md)
 
@@ -41,8 +41,8 @@
 | 能力 | 现有实现 | 差距 | 优先级 |
 |---|---|---|---|
 | 对话 | `XiaomanAgent.handle`，OpenAI 兼容，文本 + 图片输入 | 无流式输出；附件只有图片/文本文件；无语音对话 | P1 |
-| 任务执行 | `AgentSession.launch` 用 `AtomicBoolean` 保证一次一个任务；`TaskQueueStore` 提供持久化队列 | 已有入队、暂停/继续/取消、重启中断标记与 QUEUED 续跑；仍无运行中检查点、重试策略；聊天 `phone_task` 未解耦 | P0 |
-| 任务记录 | `TaskThreadStore` + `TaskThread`，主对话 `TaskEntry` 卡片 | 只有对话记录，没有状态机、预算、检查点 | P0 |
+| 任务执行 | `AgentSession.launch` 用 `AtomicBoolean` 保证一次一个任务；`TaskQueueStore` 提供持久化队列 | 已有入队、暂停/继续/取消、步级检查点与断点续跑；仍无重试策略；聊天 `phone_task` 未解耦 | P0 |
+| 任务记录 | `TaskThreadStore` + `TaskThread`，主对话 `TaskEntry` 卡片 | 已有步级检查点与断点续跑；仍无任务级预算、事件回放与评测 | P0 |
 | 事件轨迹 | `TraceWriter` 写 `trace.jsonl`、`audit.jsonl`、步骤截图 | 只用于调试，没有回放 UI、指标、评测 | P0 |
 | 记忆 | `FileMemoryStore` + `MemoryIndex` 倒排索引，Basic Memory Markdown | 无向量检索、无分层、无巩固/遗忘、无用户画像 | P1 |
 | 技能 | `SKILL.md` / `flow.yaml`，`skill_read/save/delete` | 无版本、无权限声明、无测试运行器、无市场 | P2 |
@@ -464,10 +464,17 @@ interface Verifier {
 
 ### P0-2 检查点与恢复
 
-- `TaskThreadStore` 增加 `checkpoint` 字段与 `resume(taskId)`。
-- 每步后保存步数、变量、屏幕哈希、计划。
-- 进程重启时扫描 `RUNNING` 任务，恢复或标记失败。
-- 测试：杀进程模拟、损坏检查点、不可恢复场景。
+> 状态（2026-11-15）：**已完成第一版**。检查点存在 `TaskThread.checkpoint`（步数 + 最近 12 条步骤行），
+> 通过 `TaskResume` 注入操作模型；重启时队列 RUNNING 行回 QUEUED，有检查点续跑、无检查点失败。
+> 剩余：变量与屏幕哈希（当前不保存）、技能流程断点恢复、损坏检查点的显式修复入口。
+
+- `TaskThreadStore` 增加 `checkpoint` 字段与 `resume(taskId)`。→ 已加 `checkpoint` 字段与
+  `checkpoint(taskId, steps, line)`；没有单独的 `resume(taskId)`，由 `AgentSession.drainQueue` 构造
+  `TaskResume`。
+- 每步后保存步数、变量、屏幕哈希、计划。→ 目前保存步数与最近步骤行；变量、屏幕哈希、计划未做。
+- 进程重启时扫描 `RUNNING` 任务，恢复或标记失败。→ 已完成。
+- 测试：杀进程模拟、损坏检查点、不可恢复场景。→ 覆盖前两项；损坏 `tasks.json` 走现有的
+  “按空历史启动”路径，尚未单独断言。
 
 ### P0-3 工具注册表
 

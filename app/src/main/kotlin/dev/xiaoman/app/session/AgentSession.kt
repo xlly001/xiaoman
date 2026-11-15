@@ -6,6 +6,7 @@ import dev.xiaoman.api.AgentListener
 import dev.xiaoman.api.ApprovalAnswer
 import dev.xiaoman.api.ApprovalGateway
 import dev.xiaoman.api.ApprovalRequest
+import dev.xiaoman.api.TaskResume
 import dev.xiaoman.api.UserChannel
 import dev.xiaoman.app.RunIds
 import dev.xiaoman.hands.MutableStopSignal
@@ -35,6 +36,7 @@ data class SessionTexts(
     val busy: String = "已有任务在运行。",
     val stopped: String = "已停止",
     val interrupted: String = "应用重启，任务中断",
+    val resumed: (Int) -> String = { "应用重启，从第 $it 步之后继续" },
     val approvedOnce: (String) -> String = { "已允许：$it" },
     val approvedTask: (String) -> String = { "本次任务都允许：$it" },
     val denied: (String) -> String = { "已拒绝：$it" },
@@ -115,18 +117,29 @@ class AgentSession(
     private val taskEntryIds = java.util.concurrent.ConcurrentHashMap<String, Long>()
 
     init {
-        // A RUNNING queue row means the process died mid-task. Mark its thread and main-chat card
-        // as failed instead of leaving them "进行中" forever.
-        val interrupted = queue?.interruptedIds.orEmpty().toSet()
-        if (interrupted.isNotEmpty()) {
-            interrupted.forEach { id ->
+        // A RUNNING queue row means the process died mid-task. Tasks with a checkpoint go back to
+        // the queue so the operator can continue; the rest are closed honestly.
+        val interruptedQueue = queue?.interruptedIds.orEmpty().toSet()
+        val resumable = interruptedQueue.filter { taskThreads?.get(it)?.checkpoint != null }.toSet()
+        interruptedQueue.forEach { id ->
+            if (id !in resumable) {
+                queue?.finish(id, success = false, note = texts.interrupted)
                 taskThreads?.get(id)?.let { thread ->
                     taskThreads.finish(id, success = false, summary = texts.interrupted, steps = thread.steps)
                 }
             }
+        }
+        // Threads can only be "running" on disk when the previous process died, and every queue
+        // task that could resume is already known; anything else is stale.
+        taskThreads?.threads?.value.orEmpty()
+            .filter { it.running && it.id !in resumable }
+            .forEach { thread ->
+                taskThreads?.finish(thread.id, success = false, summary = texts.interrupted, steps = thread.steps)
+            }
+        if (interruptedQueue.isNotEmpty()) {
             _items.update { list ->
                 list.map { item ->
-                    if (item is ChatItem.TaskEntry && item.taskId in interrupted) {
+                    if (item is ChatItem.TaskEntry && item.taskId in interruptedQueue && item.taskId !in resumable) {
                         item.copy(running = false, success = false, summary = texts.interrupted)
                     } else {
                         item
@@ -152,6 +165,24 @@ class AgentSession(
             }
         }
         if (event is AgentEvent.PhoneTaskFinished) onTaskEnd(event.taskId)
+        // Checkpoints double as the operator's history after a restart, so keep them compact and
+        // independent of the UI language.
+        when (event) {
+            is AgentEvent.StepExecuted -> {
+                val outcome = if (event.result.ok) "成功" else "失败：${event.result.message ?: "未知原因"}"
+                taskThreads?.checkpoint(
+                    event.taskId,
+                    event.stepIndex + 1,
+                    "${event.stepIndex + 1}. ${StepText.action(event.action)}：$outcome",
+                )
+            }
+            is AgentEvent.StepBlocked -> taskThreads?.checkpoint(
+                event.taskId,
+                event.stepIndex,
+                "${event.stepIndex + 1}. ${StepText.action(event.action)}：被拦截（${event.decision.reason}）",
+            )
+            else -> Unit
+        }
         stepText.status(event)?.let { _status.value = it }
         stepText.chatItem(event, ids.incrementAndGet())?.let { item ->
             when (event) {
@@ -351,13 +382,31 @@ class AgentSession(
             val next = store.next() ?: return false
             val agent = agent()
             if (agent == null) {
-                store.finish(next.id, success = false, note = texts.notConfigured)
+                // Keep the row for later; a missing model is not the task's failure.
+                store.requeue(next.id)
+                return false
+            }
+            val thread = taskThreads?.get(next.id)
+            val resume = if (next.resumed) {
+                thread?.checkpoint?.let { TaskResume(it.steps, it.history) }
+            } else {
+                null
+            }
+            if (next.resumed && resume == null) {
+                store.finish(next.id, success = false, note = texts.interrupted)
+                taskThreads?.finish(next.id, success = false, summary = texts.interrupted, steps = thread?.steps ?: 0)
                 continue
             }
             val started = launch(next.id) {
                 runIds.prime(next.id)
+                if (resume != null) {
+                    taskThreads?.append(
+                        next.id,
+                        ChatItem.Progress(ids.incrementAndGet(), texts.resumed(resume.steps), true),
+                    )
+                }
                 try {
-                    val finished = agent.runPhoneTask(next.goal, next.skill, listener, stopSignal)
+                    val finished = agent.runPhoneTask(next.goal, next.skill, listener, stopSignal, resume)
                     store.finish(next.id, finished.success, finished.summary)
                 } catch (e: CancellationException) {
                     store.finish(next.id, success = false, note = texts.stopped)

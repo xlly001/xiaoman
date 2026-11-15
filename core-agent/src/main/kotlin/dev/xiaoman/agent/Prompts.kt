@@ -91,6 +91,7 @@ target 写清楚操作对象的文字，例如 "确认呼叫 按钮"。付款、
     const val OPERATOR_LLM_FAILED = "操作模型暂时不可用，任务中止。"
     const val SKILL_NOT_FOUND = "找不到技能"
     const val FLOW_DONE = "流程已完成"
+    const val RESUME_FLOW_UNSUPPORTED = "这个技能流程还不支持断点恢复，请重新发起任务"
     const val CONFIRM_DECLINED = "用户没有确认，任务已取消"
     const val UNEXPECTED_ERROR = "执行任务时出错"
 
@@ -101,6 +102,18 @@ target 写清楚操作对象的文字，例如 "确认呼叫 按钮"。付款、
     const val HOWTO_HEADER = "## 以前成功的操作路径（仅供参考）"
     const val HISTORY_HEADER = "## 最近的步骤"
     const val FEEDBACK_HEADER = "## 上一步的反馈"
+
+    /** Context for a task that continues after the app process was restarted. */
+    fun resumeSection(steps: Int, history: List<String>) = buildString {
+        append("## 应用重启后的恢复\n")
+        append("这个任务在应用重启前已经执行了 ").append(steps).append(" 步。")
+        if (history.isNotEmpty()) {
+            append("\n当时的最近步骤：\n")
+            history.forEach { append("- ").append(it).append('\n') }
+        }
+        append("请先观察当前屏幕，判断流程停在哪里；不要重复已经成功的操作。")
+        append("如果当前页面与记录不一致，请重新定位目标，不要假设旧页面还在。")
+    }
 
     fun screenSection(packageName: String?, activity: String?, nodeLines: String, truncated: Int) = buildString {
         append("## 当前屏幕\n应用：").append(packageName ?: "未知")

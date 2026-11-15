@@ -8,6 +8,7 @@ import dev.xiaoman.api.ApprovalAnswer
 import dev.xiaoman.api.ApprovalRequest
 import dev.xiaoman.api.ApprovalScope
 import dev.xiaoman.api.StopSignal
+import dev.xiaoman.api.TaskResume
 import dev.xiaoman.app.RunIds
 import dev.xiaoman.hands.MutableStopSignal
 import kotlinx.coroutines.CompletableDeferred
@@ -45,13 +46,19 @@ class AgentSessionTest {
         return File(dir, "queue.json")
     }
 
-    private fun TestScope.queuedSession(agent: Agent?, queue: TaskQueueStore, runIds: RunIds) = AgentSession(
+    private fun TestScope.queuedSession(
+        agent: Agent?,
+        queue: TaskQueueStore,
+        runIds: RunIds,
+        threads: TaskThreadStore? = null,
+    ) = AgentSession(
         scope = backgroundScope,
         agent = { agent },
         runIds = runIds,
         stopSignal = MutableStopSignal(),
         trace = trace,
         queue = queue,
+        taskThreads = threads,
     )
 
     /** Answers like XiaomanAgent: asks once through the session, then finishes. */
@@ -69,7 +76,13 @@ class AgentSessionTest {
             listener.onEvent(AgentEvent.Reply("t1", "好的，去$answer"))
         }
 
-        override suspend fun runPhoneTask(goal: String, skillName: String?, listener: AgentListener, stop: StopSignal): AgentEvent.PhoneTaskFinished {
+        override suspend fun runPhoneTask(
+            goal: String,
+            skillName: String?,
+            listener: AgentListener,
+            stop: StopSignal,
+            resume: TaskResume?,
+        ): AgentEvent.PhoneTaskFinished {
             listener.onEvent(AgentEvent.PhoneTaskStarted("ignored", goal, skillName))
             gate.await()
             throw IllegalStateException("boom")
@@ -158,12 +171,15 @@ class AgentSessionTest {
                 skillName: String?,
                 listener: AgentListener,
                 stop: StopSignal,
+                resume: TaskResume?,
             ): AgentEvent.PhoneTaskFinished {
                 val id = runIds.next()
                 goals += goal
                 listener.onEvent(AgentEvent.PhoneTaskStarted(id, goal, skillName))
                 if (goals.size == 1) firstGate.await()
-                return AgentEvent.PhoneTaskFinished(id, true, "完成：$goal", 1)
+                val finished = AgentEvent.PhoneTaskFinished(id, true, "完成：$goal", 1)
+                listener.onEvent(finished)
+                return finished
             }
         }
         val s = queuedSession(agent, queue, runIds)
@@ -179,5 +195,72 @@ class AgentSessionTest {
         assertEquals(listOf("第一个", "第二个"), goals)
         assertTrue(queue.tasks.value.all { it.state == QueueState.DONE })
         assertFalse(s.busy.value)
+    }
+
+    @Test fun `an interrupted task without checkpoint is closed on load`() = runTest(UnconfinedTestDispatcher()) {
+        val queueFile = queueFile()
+        val first = TaskQueueStore(queueFile)
+        first.enqueue("q1", "查快递", at = 100)
+        first.next(at = 200) // left RUNNING, as if the process died
+
+        val queue = TaskQueueStore(queueFile)
+        val threads = TaskThreadStore(queueFile())
+        queuedSession(null, queue, RunIds(), threads)
+        advanceUntilIdle()
+
+        assertEquals(QueueState.FAILED, queue.get("q1")?.state)
+    }
+
+    @Test fun `an interrupted task with checkpoint resumes from it`() = runTest(UnconfinedTestDispatcher()) {
+        val queueFile = queueFile()
+        val first = TaskQueueStore(queueFile)
+        first.enqueue("q1", "查快递", at = 100)
+        first.next(at = 200)
+
+        val threadFile = queueFile()
+        TaskThreadStore(threadFile).apply {
+            start("q1", "查快递", at = 100)
+            checkpoint("q1", 2, "1. 点击 快递：成功", at = 300)
+            checkpoint("q1", 3, "2. 输入 123：成功", at = 400)
+        }
+
+        val resumes = mutableListOf<TaskResume?>()
+        val agent = object : Agent {
+            override suspend fun handle(
+                userMessage: String,
+                listener: AgentListener,
+                stop: StopSignal,
+                images: List<ByteArray>,
+                taskId: String?,
+            ) = Unit
+
+            override suspend fun runPhoneTask(
+                goal: String,
+                skillName: String?,
+                listener: AgentListener,
+                stop: StopSignal,
+                resume: TaskResume?,
+            ): AgentEvent.PhoneTaskFinished {
+                resumes += resume
+                listener.onEvent(AgentEvent.PhoneTaskStarted("q1", goal, skillName))
+                val finished = AgentEvent.PhoneTaskFinished("q1", true, "done", resume?.steps ?: 0)
+                listener.onEvent(finished)
+                return finished
+            }
+        }
+        val queue = TaskQueueStore(queueFile)
+        val threads = TaskThreadStore(threadFile)
+        val s = queuedSession(agent, queue, RunIds(), threads)
+
+        assertEquals(QueueState.QUEUED, queue.get("q1")?.state)
+        assertTrue(queue.get("q1")?.resumed == true)
+
+        s.resumeQueue()
+        advanceUntilIdle()
+
+        assertEquals(QueueState.DONE, queue.get("q1")?.state)
+        val resume = assertNotNull(resumes.single())
+        assertEquals(3, resume.steps)
+        assertEquals(2, resume.history.size)
     }
 }

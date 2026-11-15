@@ -77,8 +77,11 @@ fun TaskHistoryScreen(graph: AppGraph, onOpenTask: (String) -> Unit) {
     val waiting = remember(queued) {
         queued.filter { it.state == QueueState.QUEUED || it.state == QueueState.PAUSED }
     }
-    val visible = remember(threads, filter) {
+    val waitingIds = remember(waiting) { waiting.map { it.id }.toSet() }
+    val visible = remember(threads, filter, waitingIds) {
         threads
+            // A waiting row already shows the task above; do not list the same id twice.
+            .filter { it.id !in waitingIds }
             .filter {
                 when (filter) {
                     TaskFilter.ALL -> true
@@ -89,6 +92,7 @@ fun TaskHistoryScreen(graph: AppGraph, onOpenTask: (String) -> Unit) {
             }
             .sortedByDescending { it.startedAt }
     }
+    val total = remember(threads, waiting) { (threads.map { it.id } + waiting.map { it.id }).distinct().size }
 
     Column(Modifier.fillMaxSize()) {
         Row(
@@ -98,7 +102,7 @@ fun TaskHistoryScreen(graph: AppGraph, onOpenTask: (String) -> Unit) {
             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
                 Text(stringResource(R.string.nav_tasks), style = MaterialTheme.typography.headlineMedium)
                 Text(
-                    stringResource(R.string.tasks_count, threads.size + waiting.size),
+                    stringResource(R.string.tasks_count, total),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
@@ -225,9 +229,13 @@ private fun QueueCard(
                     maxLines = 2,
                     overflow = TextOverflow.Ellipsis,
                 )
+                val status = when {
+                    paused -> stringResource(R.string.queue_paused)
+                    task.resumed -> stringResource(R.string.queue_waiting) + " · " + stringResource(R.string.queue_resumed)
+                    else -> stringResource(R.string.queue_waiting)
+                }
                 Text(
-                    stringResource(if (paused) R.string.queue_paused else R.string.queue_waiting) +
-                        " · " + timeOf(task.createdAt),
+                    status + " · " + timeOf(task.createdAt),
                     style = MaterialTheme.typography.labelSmall,
                     color = color,
                 )

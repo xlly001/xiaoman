@@ -207,6 +207,8 @@
     <string name="queue_resume">继续</string>
     <string name="queue_full">队列已满，请先处理排队中的任务。</string>
     <string name="queue_interrupted">应用重启，任务中断</string>
+    <string name="queue_resumed">重启后继续</string>
+    <string name="task_resumed">应用重启，从第 %1$d 步之后继续</string>
     <string name="quick_title">常用指令</string>
     <string name="quick_add">新建指令</string>
     <string name="quick_dialog_add_title">新建常用指令</string>

@@ -76,17 +76,17 @@ class TaskQueueStoreTest {
         assertEquals("已到达北京", reloaded.note)
     }
 
-    @Test fun `a running task becomes failed after a restart`() {
+    @Test fun `a running task returns to the queue as resumed after a restart`() {
         val file = tempFile()
         val store = TaskQueueStore(file)
         store.enqueue("q1", "查快递", at = 100)
         store.next(at = 200)
 
-        val reloaded = TaskQueueStore(file, interruptedNote = "应用重启，任务中断")
+        val reloaded = TaskQueueStore(file)
         val task = reloaded.get("q1")
         assertNotNull(task)
-        assertEquals(QueueState.FAILED, task.state)
-        assertEquals("应用重启，任务中断", task.note)
+        assertEquals(QueueState.QUEUED, task.state)
+        assertTrue(task.resumed)
         assertEquals(listOf("q1"), reloaded.interruptedIds)
     }
 
